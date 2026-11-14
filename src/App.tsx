@@ -671,8 +671,8 @@ export default function App() {
   const toolbar: [Tool, string, ReactNode][] = [
     ["select", "Select and move · Esc", <ToolIcon kind="select" />],
     ["horizontal", "Horizontal line", <ToolIcon kind="horizontal" />],
-    ["ray", "Ray · choose two points", <ToolIcon kind="ray" />],
-    ["trend", "Trend line", <ToolIcon kind="trend" />],
+    ["ray", "Ray · choose two points · Shift locks an axis", <ToolIcon kind="ray" />],
+    ["trend", "Trend line · hold Shift to lock an axis", <ToolIcon kind="trend" />],
     ["zone", "Rectangle · click and drag", <ToolIcon kind="zone" />],
     ["fib", "Fibonacci · click and drag", <ToolIcon kind="fib" />],
     ["long", "Long position · buy plan", <ToolIcon kind="long" />],
