@@ -1,0 +1,36 @@
+{
+  "runtime": {
+    "release": "b12374",
+    "source": "https://github.com/ggml-org/llama.cpp/releases/tag/b12374",
+    "cpu": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12374/llama-b12374-bin-win-cpu-x64.zip",
+      "sha256": "73629652b2ced9dd89d054e185f3b2beb5476f90bb1853834a89647fc558e70e",
+      "bytes": 25117080,
+      "name": "llama-b12374-bin-win-cpu-x64.zip"
+    },
+    "vulkan": {
+      "url": "https://github.com/ggml-org/llama.cpp/releases/download/b12374/llama-b12374-bin-win-vulkan-x64.zip",
+      "sha256": "2130d091bbd842b6a3ba9b9b6ae6cfdf9507089ceb1d3152fac165726b35cc8c",
+      "bytes": 38113332,
+      "name": "llama-b12374-bin-win-vulkan-x64.zip"
+    }
+  },
+  "models": [
+    {
+      "name": "Qwen3.5-4B-Q4_K_M.gguf",
+      "url": "https://huggingface.co/lmstudio-community/Qwen3.5-4B-GGUF/resolve/f9f88ac3e234be915e23811a6d28ea287bdb927e/Qwen3.5-4B-Q4_K_M.gguf",
+      "sha256": "25082a7dd3776cc3c741c6347d3bd04523f05796607b3fbc32fa3a25dfa1418c",
+      "bytes": 2707513696
+    },
+    {
+      "name": "mmproj-Qwen3.5-4B-BF16.gguf",
+      "url": "https://huggingface.co/lmstudio-community/Qwen3.5-4B-GGUF/resolve/f9f88ac3e234be915e23811a6d28ea287bdb927e/mmproj-Qwen3.5-4B-BF16.gguf",
+      "sha256": "ae08d9d7eceb8f2d0672d61b5e6aa78b611f2942b55ed71d21414980cc454b91",
+      "bytes": 675568768
+    }
+  ],
+  "modelSource": "https://huggingface.co/lmstudio-community/Qwen3.5-4B-GGUF",
+  "revision": "f9f88ac3e234be915e23811a6d28ea287bdb927e",
+  "modelLicense": "Apache-2.0",
+  "runtimeLicense": "MIT"
+}
