@@ -1,0 +1,3 @@
+export {TELEGRAM_GROUPS,type FeedGroup} from "./feed-journal";
+import {TELEGRAM_GROUPS} from "./feed-journal";
+export function validateFeed(value:any,group:string){if(!Object.hasOwn(TELEGRAM_GROUPS,group)||value?.group!==group||value.live!==true||!Number.isFinite(value.observedAt)||!Array.isArray(value.messages)||value.messages.length>50)throw Error("Invalid selected source");return {group,title:TELEGRAM_GROUPS[group],observedAt:value.observedAt,live:true,messages:value.messages.map((m:any)=>{if(!Number.isSafeInteger(m.id)||m.id<=0||!Number.isFinite(m.time)||typeof m.text!=="string"||m.text.length>6000)throw Error("Invalid message");return{id:m.id,time:m.time,editedAt:Number.isFinite(m.editedAt)?m.editedAt:null,text:m.text,hasMedia:m.hasMedia===true};})};}

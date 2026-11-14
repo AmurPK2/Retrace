@@ -1,0 +1,18 @@
+RETRACE for Windows
+
+Extract the entire ZIP, then open RETRACE.exe.
+First setup downloads real starter chart data and about 3.4 GB of local AI files.
+Keep the app open to finish. Downloads resume after an interruption.
+No LM Studio, AI account, API key or Discord application setup is needed.
+
+Discord desktop: Balance, Wins and Check out the project appear automatically.
+Sharing can be turned off in RETRACE Settings. Discord privacy settings apply.
+Learning: select Norsk or English. C1/C2/C3 are three candles in order.
+Trades: the Trades button or History > Show on chart finds entry/exit arrows.
+
+Your sessions, prices and AI files stay in the local data folder beside the app.
+Keep that data folder when updating. Back it up separately.
+Telegram is optional and has no preconfigured sources or accounts.
+This is a simulated replay app; there is no broker order route.
+
+Source, updates and instructions: https://github.com/AmurPK2/Retrace

@@ -1,2 +1,61 @@
-# Retrace
-A replay trading terminal with built in local AI, chart analysis hints and learning
+# RETRACE
+
+<p align="center"><img src="assets/RETRACE.png" width="112" alt="RETRACE RT logo"></p>
+
+A Windows desktop app for practising on real historical gold charts, reviewing your decisions with local AI, and learning one candle at a time.
+
+**[Download RETRACE for Windows](https://github.com/AmurPK2/Retrace/releases/latest)** · **[Check out the project](https://github.com/AmurPK2/Retrace)**
+
+## Get started
+
+1. Download the Windows ZIP from Releases and extract the whole folder somewhere you can write to.
+2. Open **RETRACE.exe**. Keep the app open while its first setup finishes.
+3. A small starter period of genuine XAUUSD bid/ask history downloads automatically and opens a paused $500 simulated practice account. The local chart coach prepares separately.
+
+You do **not** need LM Studio, an AI account, an API key, model commands, or a Discord Developer Portal application. First AI setup downloads about **3.4 GB** from the model publisher and the official llama.cpp releases, checks pinned SHA-256 hashes, and starts the runtime privately. Interrupted downloads resume next time. GPU support is tried automatically, with a CPU fallback. Windows x64 is currently supported; 16 GB RAM and several GB of free disk space are recommended. CPU image reviews can take longer.
+
+Internet is needed for initial downloads. Replay and local AI can then work offline with downloaded data. The app stays usable while AI prepares. If a provider is temporarily unavailable, setup shows the issue; Data hours and the Assistant On/Off control let you retry. No unknown prices are invented to finish setup.
+
+## What you can do
+
+- **Replay real ticks.** Space plays or pauses; Right Arrow advances to the next candle. Missing unverified price data pauses execution. Market breaks and historical gaps use thin dashed separators, without large empty chart spaces. Genuine price jumps remain visible.
+- **See your trades.** Blue buy and red sell arrows mark actual entries and exits at their execution prices. Dashed links show each trade. **Trades** finds your latest trade; **History → Show on chart** finds an earlier one. The original **Decision chart** stays available.
+- **Ask the chart coach.** Reviews retrieve that exact trade's saved decision chart, original stop/target, drawings and candle evidence. Current-chart hints use the image and candle data from the visible chart window. Answers stay short and use your question's language. Known contradictions are checked before display. Missing entry rules are reported as unclear rather than invented; a profitable result alone does not certify a setup.
+- **Learn plainly.** Learning has Norwegian and English explanations. C1 is the first candle, C2 is the next finished candle, and C3 is the candle after C2. The beginner guide uses real candles from your chart, explains technical words, and walks through saving an idea before revealing its result.
+- **Show progress in Discord.** With Discord desktop open, RETRACE automatically shows **Balance**, **Wins**, the RT icon and **Check out the project**. The button opens this repository. No join invitation, party details, instrument subtitle or elapsed timer is sent. A win counts a fully closed profitable trade after costs and partial exits. Sharing can be switched off in Settings; Discord's own activity/privacy preferences still apply.
+- **Draw and save.** Lines, rays, rectangles, position plans, indicators, notes and practice sessions persist locally. Continue restores the replay paused. Export a session backup from the session menu.
+
+This is a simulated replay workspace, with no broker order route. Balances, positions and Discord numbers are practice results. The local model can still make mistakes; its answer is not proof of a trading edge.
+
+## Your own data and optional Telegram sources
+
+**No personal sessions, trading records, Telegram groups, account credentials, model weights or datasets are included in this repository or release.** Each installation creates its own local `data` folder beside the app. Keep that folder when updating and back it up separately. `XAU_REPLAY_DATA` can choose a different writable location.
+
+Use **Data hours** to download another period or import your own bid/ask CSV. Price files and AI weights are separate from session backups. The importer records source and integrity information; unavailable intervals stay explicit.
+
+Telegram is entirely optional and starts with **zero sources**. Open **Telegram → Your sources**, enter your own Telegram Application API ID/hash, and list the channels your account already belongs to. Sign in yourself using the QR code in Telegram. RETRACE stores the API credentials and login session encrypted with your Windows account. It never borrows another app's login, joins a group, sends a message, or marks Telegram messages as read. Feed messages are separate from chart AI. Offline intervals can miss edits/deletions; the panel states that limit.
+
+## Build from source
+
+Install Node.js 24 LTS and Git, then:
+
+```powershell
+git clone https://github.com/AmurPK2/Retrace.git
+cd Retrace
+npm ci --cache .cache/npm
+npm run build
+npm start
+```
+
+The same automatic first-run setup runs in a source build. For development use `npm run dev`; for the portable Windows ZIP use `npm run package:zip`. `npm test` runs offline regression tests and `npm run typecheck` checks TypeScript. The Windows CI workflow builds, tests and uploads a clean portable artifact. Release executables are currently unsigned.
+
+Source, builds, local dependencies and optional downloads can stay in the same project folder. `data`, `runtime`, `.cache`, logs, credentials and build outputs are ignored by Git. Do not publish your own `data` folder or Telegram login files.
+
+## Components and credits
+
+- React, Electron and TypeScript; [Lightweight Charts](https://github.com/tradingview/lightweight-charts) with its required chart attribution.
+- [llama.cpp](https://github.com/ggml-org/llama.cpp) for automatic local inference and [Qwen3.5-4B GGUF](https://huggingface.co/lmstudio-community/Qwen3.5-4B-GGUF) for text and chart-image analysis. The download manifest pins versions and publisher hashes; weights are downloaded separately under their own license.
+- Historical bid/ask downloads come from Dukascopy's public data feed. No historical dataset is redistributed here. Check the data provider's terms for your intended use.
+- Learning retains its public source links and separates simple practice exercises from claims about a complete trading strategy. Video guides are a later item; they should use recorded real charts rather than invented chart footage.
+
+RETRACE source is available under the [MIT License](LICENSE). Third-party components retain their own licenses; see [THIRD_PARTY_NOTICES.txt](THIRD_PARTY_NOTICES.txt).
