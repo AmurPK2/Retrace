@@ -1,0 +1,86 @@
+{
+  "name": "retrace",
+  "version": "0.2.0",
+  "private": true,
+  "description": "RETRACE · real-tick chart replay with automatic local AI",
+  "main": "dist-electron/main.cjs",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "build": "tsc --noEmit && vite build && node scripts/build.mjs",
+    "start": "electron .",
+    "test": "tsx --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "import:year": "tsx scripts/import.ts --year",
+    "import:range": "tsx scripts/import.ts",
+    "package": "npm run build && electron-builder --win --dir",
+    "package:zip": "npm run build && electron-builder --win zip"
+  },
+  "dependencies": {
+    "adm-zip": "^0.6.1",
+    "csv-parse": "7.0.3",
+    "decimal.js": "^10.6.0",
+    "lightweight-charts": "^5.3.0",
+    "lucide-react": "^0.577.0",
+    "lzma": "^2.3.2",
+    "qrcode": "^1.5.4",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "teleproto": "1.233.0",
+    "zod": "^4.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.0",
+    "@types/adm-zip": "^0.5.8",
+    "@types/node": "^24.10.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.1.0",
+    "electron": "45.3.1",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.27.0",
+    "prettier": "^3.10.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.3.8"
+  },
+  "build": {
+    "appId": "com.retrace.desktop",
+    "productName": "RETRACE",
+    "directories": {
+      "output": "release",
+      "buildResources": "assets"
+    },
+    "files": [
+      "dist/**/*",
+      "dist-electron/**/*",
+      "package.json",
+      "THIRD_PARTY_NOTICES.txt",
+      "assets/RETRACE.png",
+      "assets/RETRACE.ico",
+      "assets/RETRACE.svg",
+      "LICENSE",
+      "assets/licenses/**/*"
+    ],
+    "asar": true,
+    "win": {
+      "target": "zip",
+      "signAndEditExecutable": true,
+      "executableName": "RETRACE",
+      "icon": "assets/RETRACE.ico"
+    },
+    "extraFiles": [
+      {
+        "from": "docs/PORTABLE.txt",
+        "to": "RETRACE-Readme.txt"
+      }
+    ]
+  },
+  "author": "AmurPK2",
+  "homepage": "https://github.com/AmurPK2/Retrace",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AmurPK2/Retrace.git"
+  },
+  "license": "MIT"
+}
