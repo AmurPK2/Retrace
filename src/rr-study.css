@@ -445,12 +445,264 @@
   }
 }
 
-.rr-beginner-guide, .rr-glossary { border: 1px solid var(--line); border-radius: 9px; padding: 12px; margin-bottom: 14px; font-size: 12px; line-height: 1.65; }
-.rr-beginner-guide summary, .rr-glossary summary { cursor: pointer; font-weight: 600; color: var(--text); }
-.rr-beginner-guide p { margin: 10px 0; }
-.rr-beginner-guide ol { padding-left: 18px; margin: 8px 0 0; }
-.rr-beginner-guide li { margin: 8px 0; }
-.rr-glossary dt { font-weight: 600; margin-top: 9px; }
-.rr-glossary dd { margin: 2px 0 8px; color: var(--muted); }
+.rr-beginner-guide,
+.rr-glossary {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 12px;
+  margin-bottom: 14px;
+  font-size: 12px;
+  line-height: 1.65;
+}
+.rr-beginner-guide summary,
+.rr-glossary summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+}
+.rr-beginner-guide p {
+  margin: 10px 0;
+}
+.rr-beginner-guide ol {
+  padding-left: 18px;
+  margin: 8px 0 0;
+}
+.rr-beginner-guide li {
+  margin: 8px 0;
+}
+.rr-glossary dt {
+  font-weight: 600;
+  margin-top: 9px;
+}
+.rr-glossary dd {
+  margin: 2px 0 8px;
+  color: var(--muted);
+}
 
-.rr-language{display:flex;gap:6px;padding:8px 14px;border-bottom:1px solid var(--line)}.rr-language button{padding:5px 10px;font-size:11px}.rr-language .active{color:var(--accent);border-color:var(--accent)}.candle-basics{padding:14px 0 18px;border-bottom:1px solid var(--line);margin-bottom:18px;font-size:12px;line-height:1.7}.candle-basics h3{font-size:17px;margin:0 0 9px}.candle-order{list-style:none;padding:0;margin:14px 0;display:grid;gap:10px}.candle-order li{padding:10px 12px;border-left:2px solid var(--accent);background:var(--panel)}.candle-order b,.candle-order span{display:block}.candle-order b{color:var(--text);margin-bottom:3px}.candle-order span{color:var(--muted)}.candle-real-example{margin:14px 0}.candle-real-example svg{width:100%;color:var(--muted);font:12px sans-serif}.candle-real-example .tiny{font-size:8px}.candle-real-example figcaption{font-size:10px;color:var(--muted)}.candle-basics summary{cursor:pointer;color:var(--accent)}.candle-basics dt{font-weight:600;margin-top:9px}.candle-basics dd{margin:0;color:var(--muted)}
+.rr-language {
+  display: flex;
+  gap: 6px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+}
+.rr-language button {
+  padding: 5px 10px;
+  font-size: 11px;
+}
+.rr-language .active {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.candle-basics {
+  padding: 14px 0 18px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 18px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+.candle-basics h3 {
+  font-size: 17px;
+  margin: 0 0 9px;
+}
+.candle-order {
+  list-style: none;
+  padding: 0;
+  margin: 14px 0;
+  display: grid;
+  gap: 10px;
+}
+.candle-order li {
+  padding: 10px 12px;
+  border-left: 2px solid var(--accent);
+  background: var(--panel);
+}
+.candle-order b,
+.candle-order span {
+  display: block;
+}
+.candle-order b {
+  color: var(--text);
+  margin-bottom: 3px;
+}
+.candle-order span {
+  color: var(--muted);
+}
+.candle-real-example {
+  margin: 16px 0;
+  padding: 12px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel-solid);
+  color: var(--text);
+}
+.candle-real-example svg {
+  display: block;
+  width: 100%;
+  min-height: 120px;
+  color: var(--text);
+}
+.candle-example-wick {
+  stroke: var(--text);
+  stroke-width: 2;
+}
+.candle-example-body {
+  stroke: var(--text);
+  stroke-width: 1;
+}
+.candle-example-unknown {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+.candle-real-example .candle-example-question {
+  fill: var(--text);
+  font: 700 25px sans-serif;
+}
+.candle-example-labels {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  text-align: center;
+  color: var(--text);
+}
+.candle-example-labels strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.4;
+  color: var(--text);
+}
+.candle-example-labels span {
+  display: block;
+  margin-top: 3px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text);
+  white-space: nowrap;
+}
+.candle-real-example figcaption {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--text);
+  margin-top: 14px;
+}
+.candle-example-unavailable {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--text);
+}
+.candle-basics summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+.candle-basics dt {
+  font-weight: 600;
+  margin-top: 9px;
+}
+.candle-basics dd {
+  margin: 0;
+  color: var(--muted);
+}
+
+.rr-open-guides {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-solid);
+  color: var(--text);
+  font-size: 12px;
+}
+.rr-open-guides:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.rr-guide-dialog {
+  box-sizing: border-box;
+  width: min(1180px, 96vw);
+  max-height: 94vh;
+  overflow: auto;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--panel-solid);
+  color: var(--text);
+  box-shadow: 0 18px 80px #0009;
+}
+.rr-guide-dialog::backdrop {
+  background: #000c;
+  backdrop-filter: blur(5px);
+}
+.rr-guide-dialog header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 24px;
+  border-bottom: 1px solid var(--line);
+}
+.rr-guide-dialog header span {
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--muted);
+}
+.rr-guide-dialog h2 {
+  margin: 4px 0 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--text);
+}
+.rr-guide-dialog header button {
+  padding: 10px;
+  color: var(--text);
+}
+.rr-guide-dialog nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 24px;
+}
+.rr-guide-dialog nav button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+}
+.rr-guide-dialog nav button span {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: var(--line);
+}
+.rr-guide-dialog nav .selected {
+  border-color: var(--accent);
+}
+.rr-guide-dialog nav .selected span {
+  background: var(--accent);
+  color: #090909;
+}
+.rr-guide-dialog video {
+  display: block;
+  width: calc(100% - 48px);
+  max-height: 65vh;
+  margin: 0 24px;
+  background: #000;
+  border-radius: 4px;
+}
+.rr-guide-dialog p {
+  margin: 14px 24px 20px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--text);
+}

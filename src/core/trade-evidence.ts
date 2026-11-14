@@ -49,6 +49,7 @@ export function sessionTrades(s: Session) {
         screenshot:
           first.screenshot ?? exits.find((f) => f.screenshot)?.screenshot,
         partialExits: exits.length,
+        exitReasons: exits.map((exit) => exit.reason),
       };
     })
     .sort((a, b) => b.opened - a.opened || a.id.localeCompare(b.id));
@@ -56,9 +57,11 @@ export function sessionTrades(s: Session) {
 export type TradeEvidence = ReturnType<typeof sessionTrades>[number];
 
 export function asksAboutTrade(text: string) {
-  return /review trade:|(?:my|this|last|previous|took|taken|took this|entered|closed|earlier).{0,35}\btrade\b|\btrade.{0,35}(?:valid|setup|good|bad|mistake|right|wrong)|\b(?:valid|invalid|gyldig|ugyldig)\b|forrige.{0,25}(?:trade|handel)|(?:denne|min|tok|tidligere).{0,25}(?:traden|handelen|handel)/i.test(
-    text,
-  );
+  const english =
+    /review trade:|(?:my|this|last|previous|took|taken|took this|entered|closed|earlier).{0,35}\btrade\b|\btrade.{0,35}(?:valid|setup|good|bad|mistake|right|wrong)|\b(?:valid|invalid|gyldig|ugyldig)\b/i;
+  const norwegian =
+    /(?:^|\s)(?:min|mitt|mine|denne|dette|siste|forrige|tidligere|tok|tatt|åpnet|lukket)\b[^.!?]{0,35}\b(?:trade(?:n|s|ne)?|handel(?:en)?|handler|handlene)\b|(?:^|\s)(?:vurder|vurdere|gjennomgå)\s+(?:(?:den|min|siste)\s+)?(?:trade(?:n)?|handel(?:en)?)\b/i;
+  return english.test(text) || norwegian.test(text);
 }
 export function wantsChartAnalysis(text: string) {
   return (
@@ -242,6 +245,13 @@ export function decisionFacts(
   return {
     entryRulesDocumented,
     actualExecutedEntry: trade.entry,
+    executionOutcome: {
+      status: trade.status,
+      exitReason: trade.reason,
+      exitPrice: trade.exit,
+      exitReasons: trade.exitReasons,
+      rule: "Only an actual SL exit receipt confirms a stop hit. A manual exit, a loss, or later price action does not.",
+    },
     plannedOrderPrice: decision?.proposal?.entry ?? null,
     initialStop: trade.sl,
     initialTarget: trade.tp,
@@ -265,8 +275,42 @@ export function decisionFacts(
   };
 }
 
+export function contradictsTradeExit(
+  text: string,
+  trade?: { status?: string; reason?: string; exitReasons?: string[] } | null,
+) {
+  if (!trade) return false;
+  const reasons = trade.exitReasons ?? (trade.reason ? [trade.reason] : []);
+  if (
+    reasons.some((reason) =>
+      /^(?:SL|stop[- ]?loss|stop loss hit|stopp)$/i.test(reason),
+    )
+  )
+    return false;
+  return text.split(/[.!?;]/).some((sentence) => {
+    if (
+      /\b(?:if|unless|would|could|might|hvis|dersom|ville|kunne|not|never|ikke|aldri)\b|didn['’]t|wasn['’]t/i.test(
+        sentence,
+      )
+    )
+      return false;
+    const stop = /\b(?:stop(?:pen|p|[- ]?loss)?|sl)\b/i.test(sentence);
+    if (!stop && !/stopped out|stoppet ut/i.test(sentence)) return false;
+    return (
+      /stopped out|(?:ble|var|er|har blitt)\s+stoppet ut|(?:stop(?:pen|p|[- ]?loss)?|\bsl\b)[^,;]{0,50}\b(?:hit|triggered|truffet|utløst|tatt)\b/i.test(
+        sentence,
+      ) ||
+      /(?:price|prisen|kursen|markedet)[^;]{0,55}(?:went|ran|broke|gikk|brøt|falt|steg)[^;]{0,25}(?:through|gjennom|forbi)[^;]{0,25}(?:stop|sl|it|det)/i.test(
+        sentence,
+      )
+    );
+  });
+}
+
 export function reviewAnswerIssue(text: string, context: any) {
   const selected = context.selectedTrade;
+  if (contradictsTradeExit(text, selected))
+    return "The actual exit receipts do not show a stop-loss exit. Use selectedTrade.reason and exitReasons; do not invent a stop hit or a price running through the stop as the trade outcome.";
   if (text.trim().split(/\s+/).length > 85)
     return "Answer in at most three short sentences and about fifty words. Include one chart observation that answers the current question.";
   if (contradictsSavedStop(text, selected?.sl))

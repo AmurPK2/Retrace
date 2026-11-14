@@ -16,3 +16,8 @@ Telegram is optional and has no preconfigured sources or accounts.
 This is a simulated replay app; there is no broker order route.
 
 Source, updates and instructions: https://github.com/AmurPK2/Retrace
+
+Video guides: Study > Se videoguidene. Two Norwegian guides with real charts,
+narration, subtitles and fullscreen controls work offline.
+Draw a trend line or ray while holding Shift to lock horizontally or vertically.
+Release Shift to draw freely; Enter also completes a pending two-point line.

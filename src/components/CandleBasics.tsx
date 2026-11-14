@@ -70,10 +70,10 @@ export function CandleBasics({
           </span>
         </li>
       </ol>
-      {continuous && (
+      {continuous ? (
         <figure className="candle-real-example">
           <svg
-            viewBox="0 0 260 150"
+            viewBox="0 0 300 132"
             role="img"
             aria-label={
               norwegian
@@ -84,58 +84,71 @@ export function CandleBasics({
             {pair.map((b, i) => (
               <g key={b.time}>
                 <line
-                  x1={48 + i * 78}
-                  x2={48 + i * 78}
+                  x1={55 + i * 95}
+                  x2={55 + i * 95}
                   y1={py(b.high)}
                   y2={py(b.low)}
-                  stroke="currentColor"
-                  strokeWidth="1.5"
+                  className="candle-example-wick"
                 />
                 <rect
-                  x={36 + i * 78}
-                  width="24"
+                  x={41 + i * 95}
+                  width="28"
                   y={Math.min(py(b.open), py(b.close))}
                   height={Math.max(2, Math.abs(py(b.open) - py(b.close)))}
-                  fill={b.close >= b.open ? "#ff8a1e" : "#999999"}
+                  fill={b.close >= b.open ? "#ff8a1e" : "var(--muted)"}
+                  className="candle-example-body"
                 />
-                <text x={48 + i * 78} y="128" textAnchor="middle">
-                  C{i + 1}
-                </text>
-                <text
-                  x={48 + i * 78}
-                  y="144"
-                  textAnchor="middle"
-                  className="tiny"
-                >
-                  {label(b.time)} UTC
-                </text>
               </g>
             ))}
             <rect
-              x="191"
-              y="39"
-              width="26"
-              height="49"
-              rx="2"
-              fill="none"
-              stroke="currentColor"
-              strokeDasharray="3 4"
-              opacity=".5"
+              x="230"
+              y="29"
+              width="30"
+              height="68"
+              rx="3"
+              className="candle-example-unknown"
             />
-            <text x="204" y="71" textAnchor="middle">
+            <text
+              x="245"
+              y="72"
+              textAnchor="middle"
+              className="candle-example-question"
+            >
               ?
             </text>
-            <text x="204" y="128" textAnchor="middle">
-              C3
-            </text>
           </svg>
+          <div
+            className="candle-example-labels"
+            aria-label={
+              norwegian
+                ? "Candles i tidsrekkefølge, tider i UTC"
+                : "Candles in time order, times in UTC"
+            }
+          >
+            {pair.map((b, i) => (
+              <div key={b.time}>
+                <strong>C{i + 1}</strong>
+                <span>{label(b.time)} UTC</span>
+              </div>
+            ))}
+            <div>
+              <strong>C3</strong>
+              <span>{norwegian ? "Ukjent ennå" : "Still unknown"}</span>
+            </div>
+          </div>
           <figcaption>
             {norwegian
-              ? "C1/C2 bruker ekte priser fra charten din. Ingen pris er tegnet for C3. Én candle dekker "
-              : "C1/C2 use real prices from your chart. No C3 price is drawn. One candle covers "}
+              ? "C1 og C2 er ekte ferdige candles fra charten din. C3 er den neste — derfor vises ingen pris ennå. Én candle dekker "
+              : "C1 and C2 are real finished candles from your chart. C3 comes next, so no price is shown yet. One candle covers "}
             {timeframe}.
           </figcaption>
         </figure>
+      ) : (
+        <p className="candle-example-unavailable">
+          {norwegian
+            ? "Eksemplet trenger to ferdige candles uten datagap. Flytt replay til et sted med sammenhengende priser."
+            : "This example needs two finished candles without a data gap. Move replay to a continuous part of the history."}
+        </p>
       )}
       <p>
         <b>{norwegian ? "Eksempel med 1H:" : "Example on 1H:"}</b>{" "}

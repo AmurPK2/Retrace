@@ -47,6 +47,7 @@ import {
 import { calculateFormula } from "../core/formulas";
 import {
   moveDrawing,
+  constrainLinePoint,
   finishDrawing,
   drawingScreenHandles,
   planLevels,
@@ -173,7 +174,18 @@ export const Chart = forwardRef<
     } | null>(null);
   const drag = useRef<any>(null),
     [dims, setDims] = useState({ w: 800, h: 500 });
-  const rayPlacement = useRef<Drawing | null>(null);
+  const linePlacement = useRef<Drawing | null>(null);
+  const lastLinePoint = useRef<Drawing["a"] | null>(null);
+  const lineKeyHandler = useRef<(event: KeyboardEvent) => void>(() => {});
+  useEffect(() => {
+    const handle = (event: KeyboardEvent) => lineKeyHandler.current(event);
+    window.addEventListener("keydown", handle);
+    window.addEventListener("keyup", handle);
+    return () => {
+      window.removeEventListener("keydown", handle);
+      window.removeEventListener("keyup", handle);
+    };
+  }, []);
   const [hover, setHover] = useState<Bar | null>(null);
   const [snapPoint, setSnapPoint] = useState<{
     time: number;
@@ -186,8 +198,11 @@ export const Chart = forwardRef<
   const palette = PALETTES[appearance.preset];
   const tradeColors = orderColors(appearance.preset === "lavender");
   useEffect(() => {
-    if (tool !== "ray") {
-      rayPlacement.current = null;
+    if (
+      (tool !== "ray" && tool !== "trend") ||
+      (linePlacement.current && linePlacement.current.kind !== tool)
+    ) {
+      linePlacement.current = null;
       if (!drag.current) setDraft(null);
     }
   }, [tool]);
@@ -490,8 +505,16 @@ export const Chart = forwardRef<
             to: Number(range.to),
             version: 3,
             anchor: timesRef.current[0],
-            fromTime: timeAtLogical(timesRef.current, Number(range.from), FRAMES[timeframe]),
-            toTime: timeAtLogical(timesRef.current, Number(range.to), FRAMES[timeframe]),
+            fromTime: timeAtLogical(
+              timesRef.current,
+              Number(range.from),
+              FRAMES[timeframe],
+            ),
+            toTime: timeAtLogical(
+              timesRef.current,
+              Number(range.to),
+              FRAMES[timeframe],
+            ),
           }),
         250,
       );
@@ -504,15 +527,21 @@ export const Chart = forwardRef<
   }, [timeframe, s.id]);
   useImperativeHandle(ref, () => ({
     focusTrade: (id) => {
-      const events = tradeMarkers(s).arrows.filter(m => m.tradeId === id);
+      const events = tradeMarkers(s).arrows.filter((m) => m.tradeId === id);
       if (!events.length || !chart.current || !times.length) return false;
-      const first = Math.min(...events.map(e => e.time));
-      const last = Math.max(...events.map(e => e.time));
-      if (first < times[0] || last >= times.at(-1)! + FRAMES[timeframe]) return false;
+      const first = Math.min(...events.map((e) => e.time));
+      const last = Math.max(...events.map((e) => e.time));
+      if (first < times[0] || last >= times.at(-1)! + FRAMES[timeframe])
+        return false;
       const from = logicalAtTime(times, first, FRAMES[timeframe]);
       const to = logicalAtTime(times, last, FRAMES[timeframe]);
       chart.current.priceScale("right").applyOptions({ autoScale: true });
-      chart.current.timeScale().setVisibleLogicalRange({ from: from - 18, to: Math.max(to + 18, from + 48) } as any);
+      chart.current
+        .timeScale()
+        .setVisibleLogicalRange({
+          from: from - 18,
+          to: Math.max(to + 18, from + 48),
+        } as any);
       return true;
     },
     focusStudy: () => {
@@ -537,7 +566,10 @@ export const Chart = forwardRef<
     visibleWindow: () => {
       const range = chart.current?.timeScale().getVisibleLogicalRange();
       if (!range) return undefined;
-      return { from: timeAtLogical(times, Number(range.from), FRAMES[timeframe]), to: timeAtLogical(times, Number(range.to), FRAMES[timeframe]) };
+      return {
+        from: timeAtLogical(times, Number(range.from), FRAMES[timeframe]),
+        to: timeAtLogical(times, Number(range.to), FRAMES[timeframe]),
+      };
     },
     capture: async () => {
       if (!chart.current) return "";
@@ -619,6 +651,107 @@ export const Chart = forwardRef<
     setSnapPoint(result.snapped ? result.point : null);
     return result.point;
   };
+  const linePoint = (
+    drawing: Drawing,
+    p: Drawing["a"],
+    shift: boolean,
+    handle?: string,
+  ) => {
+    const next = constrainLinePoint(drawing, p, shift, x, y, handle);
+    if (
+      shift &&
+      ["trend", "ray"].includes(drawing.kind) &&
+      (handle === "a" || handle === "b")
+    )
+      setSnapPoint(null);
+    return next;
+  };
+  const refreshLinePreview = (shift: boolean) => {
+    const p = lastLinePoint.current;
+    if (!p) return;
+    const gesture = drag.current;
+    if (gesture?.type === "new") {
+      const drawing = gesture.drawing as Drawing;
+      if (!["trend", "ray"].includes(drawing.kind)) return;
+      gesture.drawing = finishDrawing(
+        drawing,
+        linePoint(drawing, p, shift, "b"),
+      );
+      setDraft(gesture.drawing);
+    } else if (
+      gesture?.type === "move" &&
+      ["a", "b"].includes(gesture.handle)
+    ) {
+      const drawing = gesture.original as Drawing;
+      if (!["trend", "ray"].includes(drawing.kind)) return;
+      setChanged(
+        s.drawings.map((d) =>
+          d.id === gesture.id
+            ? moveDrawing(
+                drawing,
+                linePoint(drawing, p, shift, gesture.handle),
+                gesture.start,
+                gesture.handle,
+              )
+            : d,
+        ),
+      );
+    } else if (!gesture && linePlacement.current) {
+      setDraft(
+        finishDrawing(
+          linePlacement.current,
+          linePoint(linePlacement.current, p, shift, "b"),
+        ),
+      );
+    }
+  };
+  lineKeyHandler.current = (event) => {
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.isContentEditable ||
+      target?.closest?.("input, textarea, select, dialog")
+    )
+      return;
+    if (event.key === "Shift") refreshLinePreview(event.type === "keydown");
+    if (
+      event.type === "keydown" &&
+      event.key === "Enter" &&
+      linePlacement.current &&
+      lastLinePoint.current
+    ) {
+      const original = linePlacement.current;
+      const completed = finishDrawing(
+        original,
+        linePoint(original, lastLinePoint.current, event.shiftKey, "b"),
+      );
+      if (
+        Math.hypot(
+          x(completed.b.time) - x(completed.a.time),
+          y(completed.b.price) - y(completed.a.price),
+        ) < 6
+      )
+        return;
+      event.preventDefault();
+      event.stopPropagation();
+      onDraw([...s.drawings, completed]);
+      linePlacement.current = null;
+      lastLinePoint.current = null;
+      setDraft(null);
+      setSnapPoint(null);
+    }
+    if (
+      event.type === "keydown" &&
+      event.key === "Escape" &&
+      (linePlacement.current || ["new", "move"].includes(drag.current?.type))
+    ) {
+      linePlacement.current = null;
+      lastLinePoint.current = null;
+      drag.current = null;
+      setDraft(null);
+      setChanged(null);
+      setSnapPoint(null);
+    }
+  };
   const start = (e: React.PointerEvent<SVGSVGElement>) => {
     if (secondary || !bars.length || e.button !== 0) return;
     const rect = e.currentTarget.getBoundingClientRect(),
@@ -634,6 +767,7 @@ export const Chart = forwardRef<
       target = e.target as SVGElement,
       id = target.closest<SVGElement>("[data-id]")?.dataset.id,
       handle = target.dataset.handle;
+    lastLinePoint.current = p;
     if (studyPicking && onStudyPick) {
       const nearest = bars.reduce((a, b) =>
         Math.abs(x(a.time) - (e.clientX - rect.left)) <=
@@ -688,9 +822,12 @@ export const Chart = forwardRef<
       return;
     }
     if (tool !== "select") {
-      if (tool === "ray" && rayPlacement.current) {
-        const drawing = finishDrawing(rayPlacement.current, p);
-        rayPlacement.current = null;
+      if ((tool === "ray" || tool === "trend") && linePlacement.current) {
+        const drawing = finishDrawing(
+          linePlacement.current,
+          linePoint(linePlacement.current, p, e.shiftKey, "b"),
+        );
+        linePlacement.current = null;
         drag.current = { type: "new", drawing };
         setDraft(drawing);
         e.currentTarget.setPointerCapture(e.pointerId);
@@ -725,52 +862,55 @@ export const Chart = forwardRef<
     } else onSelect(null);
   };
   const move = (e: React.PointerEvent<SVGSVGElement>) => {
-    if (!drag.current) {
-      if (tool === "ray" && rayPlacement.current) {
-        const rect = e.currentTarget.getBoundingClientRect();
+    if (!drag.current && !linePlacement.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const gesture = drag.current;
+    const p = point(
+      e.clientX - rect.left,
+      e.clientY - rect.top,
+      ((!gesture && !!linePlacement.current) ||
+        gesture?.type === "new" ||
+        (gesture?.type === "move" && !!gesture.handle)) &&
+        !e.altKey,
+      e.ctrlKey,
+    );
+    lastLinePoint.current = p;
+    if (!gesture) {
+      if ((tool === "ray" || tool === "trend") && linePlacement.current)
         setDraft(
           finishDrawing(
-            rayPlacement.current,
-            point(
-              e.clientX - rect.left,
-              e.clientY - rect.top,
-              !e.altKey,
-              e.ctrlKey,
-            ),
+            linePlacement.current,
+            linePoint(linePlacement.current, p, e.shiftKey, "b"),
           ),
         );
-      }
       return;
     }
-    const rect = e.currentTarget.getBoundingClientRect(),
-      p = point(
-        e.clientX - rect.left,
-        e.clientY - rect.top,
-        (drag.current.type === "new" ||
-          (drag.current.type === "move" && !!drag.current.handle)) &&
-          !e.altKey,
-        e.ctrlKey,
+    if (gesture.type === "new") {
+      const original = gesture.drawing as Drawing;
+      gesture.drawing = finishDrawing(
+        original,
+        linePoint(original, p, e.shiftKey, "b"),
       );
-    if (drag.current.type === "new") {
-      const original = drag.current.drawing as Drawing;
-      drag.current.drawing = finishDrawing(original, p);
-      setDraft(drag.current.drawing);
-    } else if (
-      drag.current.type === "order" ||
-      drag.current.type === "pending"
-    ) {
-      setOrderPreview({ role: drag.current.role, price: p.price });
-    } else if (drag.current.type === "protect")
+      setDraft(gesture.drawing);
+    } else if (gesture.type === "order" || gesture.type === "pending") {
+      setOrderPreview({ role: gesture.role, price: p.price });
+    } else if (gesture.type === "protect") {
       setProtect({
-        id: drag.current.pos.id,
-        kind: drag.current.kind,
+        id: gesture.pos.id,
+        kind: gesture.kind as any,
         price: p.price,
       });
-    else {
-      const d = drag.current;
+    } else {
       setChanged(
-        s.drawings.map((a) =>
-          a.id === d.id ? moveDrawing(d.original, p, d.start, d.handle) : a,
+        s.drawings.map((d) =>
+          d.id === gesture.id
+            ? moveDrawing(
+                gesture.original,
+                linePoint(gesture.original, p, e.shiftKey, gesture.handle),
+                gesture.start,
+                gesture.handle,
+              )
+            : d,
         ),
       );
     }
@@ -788,22 +928,25 @@ export const Chart = forwardRef<
       );
     if (drag.current.type === "new") {
       const original = drag.current.drawing as Drawing;
-      const completed = finishDrawing(original, pointAtRelease);
+      const completed = finishDrawing(
+        original,
+        linePoint(original, pointAtRelease, e.shiftKey, "b"),
+      );
       if (
-        original.kind === "ray" &&
+        ["ray", "trend"].includes(original.kind) &&
         Math.hypot(
           x(completed.b.time) - x(completed.a.time),
           y(completed.b.price) - y(completed.a.price),
         ) < 6
       ) {
-        rayPlacement.current = original;
+        linePlacement.current = original;
         drag.current = null;
         setDraft(completed);
         if (e.currentTarget.hasPointerCapture(e.pointerId))
           e.currentTarget.releasePointerCapture(e.pointerId);
         return;
       }
-      rayPlacement.current = null;
+      linePlacement.current = null;
       const needsArea = ["zone", "fib", "long", "short"].includes(
         original.kind,
       );
@@ -819,7 +962,12 @@ export const Chart = forwardRef<
       onDraw(
         s.drawings.map((a) =>
           a.id === d.id
-            ? moveDrawing(d.original, pointAtRelease, d.start, d.handle)
+            ? moveDrawing(
+                d.original,
+                linePoint(d.original, pointAtRelease, e.shiftKey, d.handle),
+                d.start,
+                d.handle,
+              )
             : a,
         ),
       );
@@ -852,6 +1000,7 @@ export const Chart = forwardRef<
       );
     }
     drag.current = null;
+    lastLinePoint.current = null;
     setDraft(null);
     setChanged(null);
     setProtect(null);
@@ -950,7 +1099,8 @@ export const Chart = forwardRef<
         onPointerMove={move}
         onPointerUp={finish}
         onPointerCancel={() => {
-          rayPlacement.current = null;
+          linePlacement.current = null;
+          lastLinePoint.current = null;
           drag.current = null;
           setDraft(null);
           setChanged(null);
@@ -987,7 +1137,13 @@ export const Chart = forwardRef<
           </clipPath>
         </defs>
         <g clipPath={`url(#${secondary ? "plot2" : "plot"})`}>
-          <TradeMarkers session={s} x={(time) => x(Math.floor(time / FRAMES[timeframe]) * FRAMES[timeframe])} y={y} />
+          <TradeMarkers
+            session={s}
+            x={(time) =>
+              x(Math.floor(time / FRAMES[timeframe]) * FRAMES[timeframe])
+            }
+            y={y}
+          />
           {s.study?.overlay &&
             s.study.range &&
             s.study.range.selectedAt <= s.tick.t &&
@@ -1003,13 +1159,51 @@ export const Chart = forwardRef<
                 muted={palette.muted}
               />
             )}
-          {chartBreaks(bars, timeframe).map(boundary => {
+          {chartBreaks(bars, timeframe).map((boundary) => {
             const px = (x(boundary.before) + x(boundary.after)) / 2;
-            const label = boundary.missing ? "Missing price data" : "Market time break";
-            return <g key={"break:" + boundary.after} data-chart-break={boundary.missing ? "missing" : "closed"}>
-              <title>{s.layout.blind ? label : label + " · " + candleLabel(boundary.from / 1000, timeframe, s.layout.timezone, false) + " – " + candleLabel(boundary.to / 1000, timeframe, s.layout.timezone, false) + (boundary.missing ? ". Incomplete candles are omitted; replay cannot cross unverified data." : ". No empty candle slots are inserted.")}</title>
-              <line x1={px} x2={px} y1={30} y2={paneHeight} stroke={boundary.missing ? palette.accent : palette.muted} strokeWidth="1" strokeDasharray="3 5" opacity={boundary.missing ? .85 : .45} pointerEvents="stroke" />
-            </g>;
+            const label = boundary.missing
+              ? "Missing price data"
+              : "Market time break";
+            return (
+              <g
+                key={"break:" + boundary.after}
+                data-chart-break={boundary.missing ? "missing" : "closed"}
+              >
+                <title>
+                  {s.layout.blind
+                    ? label
+                    : label +
+                      " · " +
+                      candleLabel(
+                        boundary.from / 1000,
+                        timeframe,
+                        s.layout.timezone,
+                        false,
+                      ) +
+                      " – " +
+                      candleLabel(
+                        boundary.to / 1000,
+                        timeframe,
+                        s.layout.timezone,
+                        false,
+                      ) +
+                      (boundary.missing
+                        ? ". Incomplete candles are omitted; replay cannot cross unverified data."
+                        : ". No empty candle slots are inserted.")}
+                </title>
+                <line
+                  x1={px}
+                  x2={px}
+                  y1={30}
+                  y2={paneHeight}
+                  stroke={boundary.missing ? palette.accent : palette.muted}
+                  strokeWidth="1"
+                  strokeDasharray="3 5"
+                  opacity={boundary.missing ? 0.85 : 0.45}
+                  pointerEvents="stroke"
+                />
+              </g>
+            );
           })}
           {overlays.some((i) => i.kind === "sessions") &&
             bars
