@@ -179,3 +179,28 @@ export function clipRay(
         y2: a.y + dy * to,
       };
 }
+
+// Choose the nearest screen axis: seconds and prices are different units, and
+// time may be compressed across market closures. Keep the opposite anchor exact.
+export function constrainLinePoint(
+  d: Drawing,
+  point: Point,
+  shift: boolean,
+  x: (time: number) => number,
+  y: (price: number) => number,
+  handle?: string,
+): Point {
+  if (
+    !shift ||
+    !["trend", "ray"].includes(d.kind) ||
+    (handle !== "a" && handle !== "b")
+  )
+    return point;
+  const anchor = handle === "a" ? d.b : d.a;
+  const dx = Math.abs(x(point.time) - x(anchor.time));
+  const dy = Math.abs(y(point.price) - y(anchor.price));
+  if (![dx, dy].every(Number.isFinite)) return point;
+  return dx >= dy
+    ? { ...point, price: anchor.price }
+    : { ...point, time: anchor.time };
+}
