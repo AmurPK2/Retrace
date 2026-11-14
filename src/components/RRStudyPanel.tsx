@@ -1,3 +1,4 @@
+import { VideoGuides } from "./VideoGuides";
 import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
@@ -433,6 +434,7 @@ export function RRStudyPanel({
           English
         </button>
       </div>
+      <VideoGuides norwegian={norwegian} />
       <div className="rr-study-content">
         {(tab === "learn" || tab === "practice") && (
           <CandleBasics

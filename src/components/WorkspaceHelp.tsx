@@ -14,12 +14,12 @@ const tools = [
   [
     "ray",
     "Ray",
-    "Choose two points, or hold and drag. The ray continues through the second point.",
+    "Choose two points, or hold and drag. The ray continues through the second point. Hold Shift to lock horizontally or vertically.",
   ],
   [
     "trend",
     "Trend line",
-    "Choose two endpoints, or hold and drag. Both ends remain editable.",
+    "Choose two endpoints, or hold and drag. Hold Shift to lock to the nearest horizontal or vertical axis; release Shift to draw freely. Both ends remain editable. Enter can finish a two-point line.",
   ],
   [
     "zone",
@@ -106,6 +106,13 @@ export function WorkspaceHelp() {
             <kbd>Ctrl Y</kbd> / <kbd>Ctrl Shift Z</kbd>
           </dt>
           <dd>Redo drawing change</dd>
+          <dt>
+            <kbd>Shift</kbd>
+          </dt>
+          <dd>
+            Lock a trend line or ray to the nearest horizontal or vertical axis
+            while drawing or moving an endpoint
+          </dd>
           <dt>
             <kbd>Delete</kbd>
           </dt>
