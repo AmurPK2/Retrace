@@ -1,5 +1,8 @@
-import {configureFeedGroups} from "../electron/feed-journal";
-configureFeedGroups({"example-one":"Example One","example-three":"Example Three"});
+import { configureFeedGroups } from "../electron/feed-journal";
+configureFeedGroups({
+  "example-one": "Example One",
+  "example-three": "Example Three",
+});
 import test from "node:test";
 import assert from "node:assert/strict";
 import { calculateFormula, FORMULA_PRESETS } from "../src/core/formulas";
@@ -378,4 +381,87 @@ test("saved old theme names migrate without losing opacity or creating an undefi
       SHELL.bg,
     );
   }
+});
+
+import { constrainLinePoint } from "../src/core/drawings";
+
+test("Shift locks trend/ray endpoints to the nearest screen axis, preserves the other anchor and releases freely", () => {
+  for (const kind of ["trend", "ray"] as const) {
+    const d = {
+      ...drawing,
+      kind,
+      a: { time: 10, price: 2000 },
+      b: { time: 100, price: 2040 },
+    };
+    const x = (t: number) => t * 3,
+      y = (p: number) => (p - 2000) * 2;
+    const horizontal = { time: 110, price: 2005 },
+      vertical = { time: 12, price: 2020 };
+    assert.deepEqual(constrainLinePoint(d, horizontal, true, x, y, "b"), {
+      time: 110,
+      price: 2000,
+    });
+    assert.deepEqual(constrainLinePoint(d, vertical, true, x, y, "b"), {
+      time: 10,
+      price: 2020,
+    });
+    assert.deepEqual(
+      constrainLinePoint(d, horizontal, false, x, y, "b"),
+      horizontal,
+    );
+    assert.deepEqual(
+      constrainLinePoint(d, { time: 30, price: 2035 }, true, x, y, "a"),
+      { time: 30, price: 2040 },
+    );
+    assert.deepEqual(
+      constrainLinePoint(d, vertical, true, x, y, undefined),
+      vertical,
+    );
+    assert.deepEqual(d.a, { time: 10, price: 2000 });
+    assert.deepEqual(d.b, { time: 100, price: 2040 });
+  }
+});
+
+test("Shift axis choice follows compressed/zoomed screen geometry and never alters boxes or order plans", () => {
+  const d = {
+    ...drawing,
+    kind: "trend" as const,
+    a: { time: 0, price: 2000 },
+    b: { time: 1, price: 2001 },
+  };
+  const point = { time: 172800, price: 2020 };
+  assert.deepEqual(
+    constrainLinePoint(
+      d,
+      point,
+      true,
+      (t) => (t === 0 ? 100 : 130),
+      (p) => (p - 2000) * 3,
+      "b",
+    ),
+    { time: 0, price: 2020 },
+  );
+  for (const kind of ["zone", "fib", "long", "short", "horizontal"] as const)
+    assert.deepEqual(
+      constrainLinePoint(
+        { ...d, kind },
+        point,
+        true,
+        (t) => t,
+        (p) => p,
+        "b",
+      ),
+      point,
+    );
+  assert.deepEqual(
+    constrainLinePoint(
+      d,
+      point,
+      true,
+      () => NaN,
+      (p) => p,
+      "b",
+    ),
+    point,
+  );
 });
