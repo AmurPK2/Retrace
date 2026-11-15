@@ -3,8 +3,10 @@ import { Store } from "../src/data/store";
 import { Importer } from "../src/data/importer";
 import { importCSV } from "../src/data/csv";
 const store = new Store(workerData.root);
-const importer = new Importer(store, (p) =>
-  parentPort!.postMessage({ type: "progress", value: p }),
+const importer = new Importer(
+  store,
+  (p) => parentPort!.postMessage({ type: "progress", value: p }),
+  workerData.instrument ?? "XAUUSD",
 );
 parentPort!.on("message", (m) => {
   if (m.type === "stop") importer.stop();
@@ -21,8 +23,12 @@ void (async () => {
         () => importer.paused,
       );
     else if (workerData.starter) {
-      const end = await importer.latestCompleteDay() + 86400000;
-      result = await importer.range(end - 8 * 86400000, end, { replayFrom: end - 6 * 86400000, replayTo: end, warmupDays: 2 });
+      const end = (await importer.latestCompleteDay()) + 86400000;
+      result = await importer.range(end - 8 * 86400000, end, {
+        replayFrom: end - 6 * 86400000,
+        replayTo: end,
+        warmupDays: 2,
+      });
     } else
       result = workerData.year
         ? await importer.year()

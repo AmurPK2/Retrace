@@ -1,3 +1,20 @@
+import {
+  CHALLENGES,
+  beginChallenge,
+  commitChallenge,
+  type ChallengeId,
+} from "../src/core/challenges";
+import {
+  INSTRUMENTS,
+  instrumentForDataset,
+  type InstrumentId,
+} from "../src/core/instruments";
+import { DEFAULT_HTF } from "../src/core/htf";
+import {
+  coachEvidenceReply,
+  coachRuleIssue,
+  coachEvidenceIssue,
+} from "../src/ai/coach-evidence";
 import { parentPort, workerData, Worker } from "node:worker_threads";
 import path from "node:path";
 import { existsSync, readFileSync } from "node:fs";
@@ -38,9 +55,25 @@ import {
 } from "../src/types";
 import { z } from "zod";
 import { DEFAULT_DISCORD, discordSettings } from "../src/core/discord-presence";
-import { currentChartHint, selectTradeReference, replyLanguage, savedHistoryAnswer } from "../src/ai/intent";
+import {
+  currentChartHint,
+  selectTradeReference,
+  replyLanguage,
+  savedHistoryAnswer,
+} from "../src/ai/intent";
 import { fitContext } from "../src/ai/budget";
-import { sessionTrades, asksAboutTrade, wantsChartAnalysis, reviewDecision, tradeWithDecision, contradictsSavedStop, decisionFacts, reviewAnswerIssue, factualTradeReview, factualChartHint } from "../src/core/trade-evidence";
+import {
+  sessionTrades,
+  asksAboutTrade,
+  wantsChartAnalysis,
+  reviewDecision,
+  tradeWithDecision,
+  contradictsSavedStop,
+  decisionFacts,
+  reviewAnswerIssue,
+  factualTradeReview,
+  factualChartHint,
+} from "../src/core/trade-evidence";
 import {
   DEFAULT_APPEARANCE,
   migrateAppearance,
@@ -66,7 +99,12 @@ import { rrPlanSchema, rrProgressSchema, rrStudySchema } from "./study-schema";
 const telegramFeed = new TelegramFeed(
   workerData.project,
   workerData.root,
-  (value) => parentPort!.postMessage(value.type === "persist" ? { event: "telegram-save", value: value.value } : { event: "feed", value }),
+  (value) =>
+    parentPort!.postMessage(
+      value.type === "persist"
+        ? { event: "telegram-save", value: value.value }
+        : { event: "feed", value },
+    ),
 );
 telegramFeed.configure(workerData.telegramConfig ?? null);
 const store = new Store(workerData.root),
@@ -166,14 +204,19 @@ function coverage() {
       0,
     ),
     marketDirectory: store.marketRoot,
-    source:
-      dataset === "dukascopy"
-        ? "Dukascopy XAU/USD bid/ask ticks"
-        : "CSV XAU/USD bid/ask ticks · standard NY market breaks are assumed",
-    range:
-      dataset === "dukascopy"
-        ? store.meta("importRange", undefined)
-        : undefined,
+    source: dataset.startsWith("dukascopy")
+      ? "Dukascopy " +
+        INSTRUMENTS[instrumentForDataset(dataset)].symbol +
+        " historical bid/ask ticks"
+      : "CSV XAU/USD bid/ask ticks · standard NY market breaks are assumed",
+    range: dataset.startsWith("dukascopy")
+      ? store.meta(
+          "importRange:" + dataset,
+          dataset === "dukascopy"
+            ? store.meta("importRange", undefined)
+            : undefined,
+        )
+      : undefined,
     importer:
       importProgress ??
       store.meta("importProgress", {
@@ -211,6 +254,7 @@ function state(): AppState {
     sessions: store.list() as any,
     bars,
     secondBars,
+    htfBars: s ? replay.bars(s.layout.htf?.timeframe ?? "4H") : [],
     levels: replay.levels(),
     quote: s?.tick ?? null,
     coverage: coverage(),
@@ -236,9 +280,13 @@ function save() {
 }
 function getProvider() {
   if (!provider)
-    provider = new (settings.provider === "managed" ? ManagedLocalProvider : LMStudioProvider)(
+    provider = new (
+      settings.provider === "managed" ? ManagedLocalProvider : LMStudioProvider
+    )(
       settings,
-      settings.provider === "managed" ? path.join(workerData.root, "local-ai") : workerData.project,
+      settings.provider === "managed"
+        ? path.join(workerData.root, "local-ai")
+        : workerData.project,
       (p) => {
         ai = { ...ai, ...p };
         parentPort!.postMessage({ event: "ai", value: ai });
@@ -298,19 +346,39 @@ function startImport(config: any) {
       if (/already running|already|allerede/.test(String(e))) throw e;
     }
   }
-  if (config.starter) importProgress = {running:true,done:0,total:0,bytes:0,error:"",current:"Finding a completed real-data period…",paused:false};
+  if (config.starter)
+    importProgress = {
+      running: true,
+      done: 0,
+      total: 0,
+      bytes: 0,
+      error: "",
+      current: "Finding a completed real-data period…",
+      paused: false,
+    };
   importer = new Worker(path.join(__dirname, "import-worker.cjs"), {
     workerData: { root: store.root, ...config },
   });
   importer.on("message", (m) => {
     if (m.type === "progress") importProgress = m.value;
     else if (m.type === "done") {
-      if (m.value?.dataset) {
+      if (
+        m.value?.dataset &&
+        (!config.starter || dataset === m.value.dataset)
+      ) {
         dataset = m.value.dataset;
         store.set("activeDataset", dataset);
       }
       importProgress = null;
-      if (config.starter && !replay.session && replay.eligible().length) { replay.newSession(); store.set("starterPending", false); }
+      if (
+        config.starter &&
+        m.value?.dataset === dataset &&
+        !replay.session &&
+        replay.eligible(dataset).length
+      ) {
+        replay.newSession(dataset);
+        store.set("starterPending", false);
+      }
     } else if (m.type === "error") {
       error(m.error);
       importProgress = {
@@ -352,6 +420,8 @@ const orderSchema = z.object({
   side: z.enum(["buy", "sell"]),
   kind: z.enum(["market", "limit", "stop"]),
   automaticLevel: z.boolean().optional(),
+  setupId: z.string().max(100).optional(),
+  planId: z.string().max(100).optional(),
   lots: number.positive().max(100),
   price: number.positive().optional(),
   sl: number.positive().optional(),
@@ -380,21 +450,18 @@ async function dispatch(c: Command): Promise<any> {
     case "state":
       return state();
     case "feed.configure":
-      telegramFeed.configure(c.value); return;
+      telegramFeed.configure(c.value);
+      return;
     case "feed.read":
       return telegramFeed.read(
-        z.string().max(100)
-          .parse(c.group),
+        z.string().max(100).parse(c.group),
         c.before ? z.number().int().nonnegative().parse(c.before) : 0,
       );
     case "feed.start":
       telegramFeed.start();
       return;
     case "feed.seen":
-      telegramFeed.seen(
-        z.string().max(100)
-          .parse(c.group),
-      );
+      telegramFeed.seen(z.string().max(100).parse(c.group));
       return;
     case "feed.link":
       telegramFeed.link();
@@ -425,6 +492,14 @@ async function dispatch(c: Command): Promise<any> {
           labelOpacity: z.number().min(30).max(100),
           minimal: z.boolean(),
           graphOrders: z.boolean(),
+          orderColors: z
+            .object({
+              buy: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+              sell: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+              sl: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+              tp: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+            })
+            .optional(),
           magnet: z.enum(["off", "weak", "strong"]).default("weak"),
         })
         .parse(c.value);
@@ -443,6 +518,23 @@ async function dispatch(c: Command): Promise<any> {
         dataset,
         c.timestamp === undefined ? undefined : number.parse(c.timestamp),
       );
+      if (c.challenge) {
+        const stage = z
+          .enum(CHALLENGES.map((x) => x[0]) as [ChallengeId, ...ChallengeId[]])
+          .parse(c.challenge);
+        const created = replay.session!;
+        created.learning = {
+          active: beginChallenge(
+            created,
+            replay.bars(created.layout.timeframe),
+            replay.bars("4H"),
+            stage,
+          ),
+          history: [],
+          language: "nb",
+        };
+        save();
+      }
       publish();
       return;
     case "sessions.continue":
@@ -567,6 +659,86 @@ async function dispatch(c: Command): Promise<any> {
       publish();
       return;
     }
+    case "challenge.language":
+      if (!s?.learning) throw Error("No challenge.");
+      s.learning.language = z.enum(["nb", "en"]).parse(c.value);
+      save();
+      publish();
+      return;
+    case "challenge.commit": {
+      if (!s?.learning || s.learning.active.id !== c.id)
+        throw Error("Challenge changed.");
+      playing = false;
+      const value = z
+        .object({
+          reason: z.string().min(12).max(2000),
+          value: number.optional(),
+          classification: z.string().max(30).optional(),
+          decision: z.enum(["buy", "sell", "wait"]).optional(),
+          confirmation: z.string().max(500).optional(),
+          entry: number.optional(),
+          entry2: number.optional(),
+          sl: number.optional(),
+          tp: number.optional(),
+          tp2: number.optional(),
+          lots: number.optional(),
+        })
+        .strict()
+        .parse(c.value);
+      commitChallenge(
+        s.learning.active,
+        value,
+        s,
+        s.learning.language === "nb",
+      );
+      save();
+      publish();
+      return;
+    }
+    case "challenge.reveal": {
+      if (
+        !s?.learning ||
+        s.learning.active.id !== c.id ||
+        !s.learning.active.answer
+      )
+        throw Error("Lock an answer before revealing.");
+      const attempt = s.learning.active;
+      if (attempt.revealedAt) throw Error("Already revealed.");
+      playing = false;
+      // The committed answer has already been flushed by Store.save before any price advances.
+      try {
+        replay.nextCandle(attempt.timeframe);
+      } finally {
+        attempt.revealedAt = s.tick.t;
+        attempt.outcome = {
+          from: attempt.cutoff,
+          to: s.tick.t,
+          status: s.status,
+          balance: s.broker.balance,
+        };
+        save();
+        publish();
+      }
+      return;
+    }
+    case "challenge.next": {
+      if (!s?.learning?.active.revealedAt)
+        throw Error("Reveal the saved attempt first.");
+      const index = CHALLENGES.findIndex(
+          (x) => x[0] === s.learning!.active.stage,
+        ),
+        next = CHALLENGES[(index + 1) % CHALLENGES.length][0];
+      s.learning.history.push(structuredClone(s.learning.active));
+      s.learning.active = beginChallenge(
+        s,
+        replay.bars(s.layout.timeframe),
+        replay.bars("4H"),
+        next,
+      );
+      save();
+      publish();
+      return;
+    }
     case "study.progress": {
       const value = z
         .object({
@@ -680,6 +852,8 @@ async function dispatch(c: Command): Promise<any> {
       return attempt.id;
     }
     case "study.reveal": {
+      if (s?.learning && !s.learning.active.answer)
+        throw Error("Lock your challenge answer before revealing.");
       if (!s?.study?.range || !s.study.activeId)
         throw Error("Save your plan before revealing C3.");
       playing = false;
@@ -774,6 +948,9 @@ async function dispatch(c: Command): Promise<any> {
       return;
     }
     case "play":
+      if (c.value) await cancel();
+      if (c.value && s?.learning && !s.learning.active.answer)
+        throw Error("Lås svaret i Utfordring før du viser senere priser.");
       if (!s) throw Error("Select a session first.");
       playing = Boolean(c.value);
       lastWall = performance.now();
@@ -792,6 +969,9 @@ async function dispatch(c: Command): Promise<any> {
         .parse(c.value);
       return;
     case "step":
+      await cancel();
+      if (s?.learning && !s.learning.active.answer)
+        throw Error("Lås svaret i Utfordring før du viser senere priser.");
       if (!s) throw Error("Select a session first.");
       playing = false;
       try {
@@ -882,24 +1062,84 @@ async function dispatch(c: Command): Promise<any> {
       save();
       publish();
       return;
-    case "pending.edit":
+    case "pending.edit": {
       if (!s) throw Error("Select a session first.");
-      editPending(
-        s.broker,
-        s.tick,
-        z.string().parse(c.id),
-        z
-          .object({
-            price: number.positive(),
-            sl: number.positive().optional(),
-            tp: number.positive().optional(),
-            lots: number.positive(),
-          })
-          .parse(c.changes),
-      );
-      save();
+      playing = false;
+      const before = structuredClone(s),
+        id = z.string().parse(c.id);
+      try {
+        store.transaction(() => {
+          editPending(
+            s!.broker,
+            s!.tick,
+            id,
+            z
+              .object({
+                price: number.positive().optional(),
+                sl: number.positive().optional(),
+                tp: number.positive().optional(),
+                lots: number.positive().optional(),
+              })
+              .strict()
+              .parse(c.changes),
+          );
+          const pending = s!.broker.pending.find((p) => p.id === id)!;
+          const previous = store.db
+            .prepare("SELECT * FROM decisions WHERE session=? AND id=?")
+            .get(s!.id, id);
+          if (previous)
+            store.db
+              .prepare("INSERT INTO decisions VALUES(?,?,?,?)")
+              .run(
+                s!.id,
+                id + ":revision:" + randomUUID(),
+                previous.cutoff,
+                previous.payload,
+              );
+          pending.screenshot = undefined;
+          const context = buildContext(
+            s!,
+            replay.bars(s!.layout.timeframe),
+            replay.bars(s!.layout.second),
+          );
+          context.proposal = {
+            side: pending.side,
+            kind: pending.kind,
+            entry: pending.price,
+            sl: pending.sl,
+            tp: pending.tp,
+            lots: pending.lots,
+          };
+          context.higherTimeframe = {
+            timeframe: "4H",
+            cutoff: s!.tick.t,
+            candles: replay.bars("4H").slice(-12),
+          };
+          store.db
+            .prepare("INSERT OR REPLACE INTO decisions VALUES(?,?,?,?)")
+            .run(s!.id, id, s!.tick.t, JSON.stringify(context));
+          save();
+        });
+      } catch (e) {
+        replay.setSession(before);
+        throw e;
+      }
       publish();
       return;
+    }
+    case "pending.snapshot": {
+      if (!s) return;
+      const pending = s.broker.pending.find((p) => p.id === c.id);
+      if (
+        !pending ||
+        c.revision !== pending.revisions?.length ||
+        c.cursor !== s.broker.seq
+      )
+        return;
+      pending.screenshot = screenshot(s, c.screenshot, c.cursor);
+      save();
+      return;
+    }
     case "specs":
       if (!s) throw Error("Select a session first.");
       if (s.broker.positions.length || s.broker.pending.length)
@@ -908,7 +1148,7 @@ async function dispatch(c: Command): Promise<any> {
         );
       s.broker.specs = z
         .object({
-          contract: number.positive().max(1000),
+          contract: number.positive().max(1000000),
           minLot: number.positive(),
           lotStep: number.positive(),
           leverage: number.positive().max(5000),
@@ -918,6 +1158,9 @@ async function dispatch(c: Command): Promise<any> {
           swapShort: number.min(-1000).max(1000),
           stopOut: number.min(0).max(200),
           precision: z.number().int().min(0).max(8),
+          currency: z.enum(["USD", "AUD"]).optional(),
+          unit: z.string().max(30).optional(),
+          tickSize: number.positive().optional(),
         })
         .parse(c.value);
       save();
@@ -950,9 +1193,23 @@ async function dispatch(c: Command): Promise<any> {
         number.parse(c.sl),
         s.broker.specs,
       );
+    case "drawing.patch":
+    case "drawing.remove":
     case "drawings":
       if (!s) throw Error("Select a session first.");
       {
+        if (c.type === "drawing.patch") {
+          const id = z.string().parse(c.id),
+            patch = z.record(z.string(), z.unknown()).parse(c.patch);
+          if (!s.drawings.some((d) => d.id === id))
+            throw Error("Drawing no longer exists.");
+          c.value = s.drawings.map((d) =>
+            d.id === id
+              ? { ...d, ...patch, id: d.id, createdCursor: d.createdCursor }
+              : d,
+          );
+        } else if (c.type === "drawing.remove")
+          c.value = s.drawings.filter((d) => d.id !== z.string().parse(c.id));
         const ds = z
           .array(
             z.object({
@@ -970,6 +1227,19 @@ async function dispatch(c: Command): Promise<any> {
               b: z.object({ time: number, price: number.positive() }),
               color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
               locked: z.boolean(),
+              hidden: z.boolean().optional(),
+              fibFill: z.boolean().optional(),
+              fibStyles: z
+                .record(
+                  z.string(),
+                  z.object({
+                    color: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+                    label: z.string().max(40),
+                    visible: z.boolean(),
+                    style: z.enum(["solid", "dashed", "dotted"]),
+                  }),
+                )
+                .optional(),
               label: z.string().max(200),
               levels: z.array(number.min(-10).max(10)).max(20),
               createdCursor: number,
@@ -1015,6 +1285,26 @@ async function dispatch(c: Command): Promise<any> {
               .object({
                 timeframe: z.enum(["1m", "5m", "15m", "30m", "1H", "4H", "1D"]),
                 second: z.enum(["1m", "5m", "15m", "30m", "1H", "4H", "1D"]),
+                htf: z
+                  .object({
+                    enabled: z.boolean(),
+                    timeframe: z.enum([
+                      "1m",
+                      "5m",
+                      "15m",
+                      "30m",
+                      "1H",
+                      "4H",
+                      "1D",
+                    ]),
+                    count: z.number().int().min(1).max(5),
+                    width: z.number().min(12).max(64),
+                    gap: z.number().min(4).max(40),
+                    up: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+                    down: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+                    levels: z.boolean(),
+                  })
+                  .optional(),
                 dual: z.boolean(),
                 ai: z.boolean(),
                 bottom: number.min(140).max(600),
@@ -1027,8 +1317,8 @@ async function dispatch(c: Command): Promise<any> {
                     to: number,
                     version: z.union([z.literal(2), z.literal(3)]).optional(),
                     anchor: number.optional(),
-            fromTime: number.optional(),
-            toTime: number.optional(),
+                    fromTime: number.optional(),
+                    toTime: number.optional(),
                   })
                   .optional(),
                 secondRange: z
@@ -1037,8 +1327,8 @@ async function dispatch(c: Command): Promise<any> {
                     to: number,
                     version: z.union([z.literal(2), z.literal(3)]).optional(),
                     anchor: number.optional(),
-            fromTime: number.optional(),
-            toTime: number.optional(),
+                    fromTime: number.optional(),
+                    toTime: number.optional(),
                   })
                   .optional(),
               })
@@ -1154,8 +1444,34 @@ async function dispatch(c: Command): Promise<any> {
         ),
       }));
     }
+    case "instrument": {
+      const id = z.enum(["XAUUSD", "EURAUD", "NAS100", "NQ"]).parse(c.value);
+      if (!INSTRUMENTS[id].available)
+        throw Error(
+          "NQ futures requires licensed contract tick data. No continuous or CFD substitute is supplied.",
+        );
+      await cancel();
+      await stopImport();
+      playing = false;
+      if (s) save();
+      dataset = INSTRUMENTS[id].dataset;
+      store.set("activeDataset", dataset);
+      const existing = store
+        .list()
+        .map((a) => store.load(String(a.id)))
+        .find((a) => a?.dataset === dataset);
+      if (existing) replay.setSession(existing);
+      else {
+        replay.session = null;
+        if (replay.eligible(dataset).length) replay.newSession(dataset);
+        else startImport({ instrument: id, starter: true });
+      }
+      publish();
+      return;
+    }
     case "import.start":
       startImport({
+        instrument: instrumentForDataset(dataset),
         year: Boolean(c.year),
         from: c.from === undefined ? undefined : number.parse(c.from),
         to: c.to === undefined ? undefined : number.parse(c.to),
@@ -1281,37 +1597,129 @@ async function dispatch(c: Command): Promise<any> {
       playing = false;
       {
         const prompt = z.string().min(1).max(12000).parse(c.text);
-        if (c.cursor !== s.broker.seq) throw Error("The chart changed. Pause and try again.");
-        const target = z.string().max(200).parse(c.tradeId ?? "auto");
-        const review = target !== "chart" && !(target === "auto" && currentChartHint(prompt)) && (target !== "auto" || asksAboutTrade(prompt));
+        if (c.cursor !== s.broker.seq)
+          throw Error("The chart changed. Pause and try again.");
+        const target = z
+          .string()
+          .max(200)
+          .parse(c.tradeId ?? "auto");
+        const review =
+          target !== "chart" &&
+          !(target === "auto" && currentChartHint(prompt)) &&
+          (target !== "auto" || asksAboutTrade(prompt));
         const trades = sessionTrades(s);
-        const previousTrade = [...s.chat].reverse().find(m => m.role === "assistant" && (m as any).evidence?.tradeId) as any;
-        const selected = review ? target === "auto" ? selectTradeReference(trades, prompt, previousTrade?.evidence?.tradeId) : trades.find(t => t.id === target) ?? null : null;
-        if (review && target !== "auto" && !selected) throw Error("That trade is not in this session at the current replay time.");
-        const row = selected ? store.db.prepare("SELECT payload FROM decisions WHERE session=? AND id=? AND cutoff<=?").get(s.id, selected.id, s.tick.t) : null;
-        const decision = row ? reviewDecision(JSON.parse(String(row.payload)), selected, s.tick.t, s.broker.seq) : null;
-        const visibleWindow = c.visibleWindow ? z.object({from: z.number().finite(), to: z.number().finite()}).refine(v => v.to > v.from).parse(c.visibleWindow) : undefined;
-        const fullContext = buildContext(s, replay.bars(s.layout.timeframe), replay.bars(s.layout.second), review ? undefined : c.proposal as any, replay.levels(), visibleWindow);
+        const previousTrade = [...s.chat]
+          .reverse()
+          .find(
+            (m) => m.role === "assistant" && (m as any).evidence?.tradeId,
+          ) as any;
+        const selected = review
+          ? target === "auto"
+            ? selectTradeReference(
+                trades,
+                prompt,
+                previousTrade?.evidence?.tradeId,
+              )
+            : (trades.find((t) => t.id === target) ?? null)
+          : null;
+        if (review && target !== "auto" && !selected)
+          throw Error(
+            "That trade is not in this session at the current replay time.",
+          );
+        const row = selected
+          ? store.db
+              .prepare(
+                "SELECT payload FROM decisions WHERE session=? AND id=? AND cutoff<=?",
+              )
+              .get(s.id, selected.id, s.tick.t)
+          : null;
+        const decision = row
+          ? reviewDecision(
+              JSON.parse(String(row.payload)),
+              selected,
+              s.tick.t,
+              s.broker.seq,
+            )
+          : null;
+        const visibleWindow = c.visibleWindow
+          ? z
+              .object({ from: z.number().finite(), to: z.number().finite() })
+              .refine((v) => v.to > v.from)
+              .parse(c.visibleWindow)
+          : undefined;
+        const fullContext = buildContext(
+          s,
+          replay.bars(s.layout.timeframe),
+          replay.bars(s.layout.second),
+          review ? undefined : (c.proposal as any),
+          replay.levels(),
+          visibleWindow,
+        );
+        fullContext.higherTimeframe = {
+          timeframe: "4H",
+          cutoff: selected ? (decision?.cutoff ?? selected.opened) : s.tick.t,
+          candles: replay
+            .barsAt(
+              selected ? (decision?.cutoff ?? selected.opened) : s.tick.t,
+              "4H",
+            )
+            .slice(-8),
+        };
         fullContext.reviewMode = review;
         if (selected) {
           fullContext.selectedTrade = tradeWithDecision(selected, decision);
-          fullContext.reviewFacts = decisionFacts(fullContext.selectedTrade, decision);
-          fullContext.proposal = { ...fullContext.selectedTrade, kind: "executed trade" };
+          fullContext.reviewFacts = decisionFacts(
+            fullContext.selectedTrade,
+            decision,
+          );
+          fullContext.proposal = {
+            ...fullContext.selectedTrade,
+            kind: "executed trade",
+          };
           fullContext.thesis = decision?.thesis ?? selected.thesis;
           fullContext.checklist = decision?.checklist ?? {};
           if (decision?.strategy) fullContext.strategy = decision.strategy;
         }
         fullContext.reviewAtDecision = decision;
         const visual = settings.vision || review || wantsChartAnalysis(prompt);
-        const currentImage = visual && c.screenshot ? String(c.screenshot) : null;
-        const imageRow = visual && selected?.screenshot ? store.db.prepare("SELECT png FROM images WHERE id=? AND session=? AND cutoff<=? AND cursor<=?").get(selected.screenshot, s.id, s.tick.t, s.broker.seq) : null;
+        const currentImage =
+          visual && c.screenshot ? String(c.screenshot) : null;
+        const imageRow =
+          visual && selected?.screenshot
+            ? store.db
+                .prepare(
+                  "SELECT png FROM images WHERE id=? AND session=? AND cutoff<=? AND cursor<=?",
+                )
+                .get(selected.screenshot, s.id, s.tick.t, s.broker.seq)
+            : null;
         const decisionImage = imageRow?.png ? String(imageRow.png) : null;
-        for (const image of [currentImage, decisionImage]) if (image && (!image.startsWith("data:image/png;base64,") || image.length > 4000000)) throw Error("Invalid chart image.");
-        fullContext.visualEvidence = { requested: visual, originalDecisionAvailable: !!decisionImage, currentChartAvailable: !!currentImage, suppliedToModel: [] };
-        const contextTokens = settings.profile === "light" ? Math.min(settings.context, 4096) : Math.max(settings.context, visual ? 8192 : 0);
-        const context = fitContext(fullContext, contextTokens, settings.maxTokens, visual);
+        for (const image of [currentImage, decisionImage])
+          if (
+            image &&
+            (!image.startsWith("data:image/png;base64,") ||
+              image.length > 4000000)
+          )
+            throw Error("Invalid chart image.");
+        fullContext.visualEvidence = {
+          requested: visual,
+          originalDecisionAvailable: !!decisionImage,
+          currentChartAvailable: !!currentImage,
+          suppliedToModel: [],
+        };
+        const contextTokens =
+          settings.profile === "light"
+            ? Math.min(settings.context, 4096)
+            : Math.max(settings.context, visual ? 8192 : 0);
+        const context = fitContext(
+          fullContext,
+          contextTokens,
+          settings.maxTokens,
+          visual,
+        );
         // Preserve retrievable evidence with the conversation's snapshot id. Exact trade lookup uses its order id.
-        store.db.prepare("INSERT INTO decisions VALUES(?,?,?,?)").run(s.id, context.snapshotId, s.tick.t, JSON.stringify(context));
+        store.db
+          .prepare("INSERT INTO decisions VALUES(?,?,?,?)")
+          .run(s.id, context.snapshotId, s.tick.t, JSON.stringify(context));
         const model = settings.model;
         const base = {
           at: Date.now(),
@@ -1349,27 +1757,113 @@ async function dispatch(c: Command): Promise<any> {
         };
         publish();
         generating = (async () => {
+          await Promise.resolve(); // Assign the task before a synchronous saved-data reply finishes.
           try {
             const historyAnswer = savedHistoryAnswer(s, prompt);
-            if (historyAnswer) { reply.text=historyAnswer; reply.historyAnswer=true; reply.status="complete"; ai={...ai,state:"ready",message:"Saved trade history retrieved."}; return; }
+            if (historyAnswer) {
+              reply.text = historyAnswer;
+              reply.historyAnswer = true;
+              reply.status = "complete";
+              ai = {
+                ...ai,
+                state: "ready",
+                message: "Saved trade history retrieved.",
+              };
+              return;
+            }
+            const simpleFrames =
+              /(?:timeframe|tidsram|do i mark|difference.{0,50}4H)/i.test(
+                prompt,
+              ) &&
+              !/(?:assess|vurder|valid|gyldig|my plan|mitt oppsett)/i.test(
+                prompt,
+              );
+            const missingPair =
+              !context.selectedRange &&
+              /C1|C2/i.test(prompt) &&
+              /(?:setup|oppsett|valid|gyldig|vurder|assess)/i.test(prompt);
+            const computedPlan =
+              context.planFacts.entries.length > 0 &&
+              (context.planFacts.entries.some((p) => p.issues.length) ||
+                /no entry confirmation|geometry.{0,20}(?:only|practice)/i.test(
+                  context.strategy.text,
+                ));
+            const ruleQuestion =
+              /always true|alltid|must be outside|close as.{0,20}stop/i.test(
+                prompt,
+              );
+            if (
+              !review &&
+              (simpleFrames || missingPair || computedPlan || ruleQuestion)
+            ) {
+              reply.text = coachEvidenceReply(context, prompt);
+              reply.savedFacts = true;
+              reply.status = "complete";
+              ai = {
+                ...ai,
+                state: "ready",
+                message: "Replay facts retrieved.",
+              };
+              return;
+            }
             const p = getProvider();
-            if (p.instance && p.settings.context < contextTokens) await p.unload();
-            p.settings = { ...settings, context: Math.max(contextTokens, p.settings.context) };
+            if (p.instance && p.settings.context < contextTokens)
+              await p.unload();
+            p.settings = {
+              ...settings,
+              maxTokens: Math.max(settings.maxTokens, 640),
+              context: Math.max(contextTokens, p.settings.context),
+            };
             if (!p.instance) await p.load();
-            const supports = visual && (await p.models()).find((m: { id: string }) => m.id === settings.model)?.vision;
+            const supports =
+              visual &&
+              (await p.models()).find(
+                (m: { id: string }) => m.id === settings.model,
+              )?.vision;
             const imageParts: any[] = [];
             if (supports) {
               if (decisionImage) {
-                context.visualEvidence.suppliedToModel.push("Original decision chart");
-                imageParts.push({ type: "text", text: "Original decision chart for the selected trade. Judge the entry here, before later price action." }, { type: "image_url", image_url: { url: decisionImage } });
+                context.visualEvidence.suppliedToModel.push(
+                  "Original decision chart",
+                );
+                imageParts.push(
+                  {
+                    type: "text",
+                    text: "Original decision chart for the selected trade. Judge the entry here, before later price action.",
+                  },
+                  { type: "image_url", image_url: { url: decisionImage } },
+                );
               }
               if (currentImage) {
-                context.visualEvidence.suppliedToModel.push("Current replay chart");
-                imageParts.push({ type: "text", text: review ? "Current replay chart. Later comparison only; do not use it to justify the earlier decision." : "Current replay chart for this question." }, { type: "image_url", image_url: { url: currentImage } });
+                context.visualEvidence.suppliedToModel.push(
+                  "Current replay chart",
+                );
+                imageParts.push(
+                  {
+                    type: "text",
+                    text: review
+                      ? "Current replay chart. Later comparison only; do not use it to justify the earlier decision."
+                      : "Current replay chart for this question.",
+                  },
+                  { type: "image_url", image_url: { url: currentImage } },
+                );
               }
             }
-            reply.evidence = { tradeId: selected?.id, label: selected ? selected.side.toUpperCase() + " @ " + selected.entry : undefined, decisionCutoff: decision?.cutoff, decisionImage: !!supports && !!decisionImage, currentImage: !!supports && !!currentImage, chartScan: true };
-            store.db.prepare("UPDATE decisions SET payload=? WHERE session=? AND id=?").run(JSON.stringify(context), s.id, context.snapshotId);
+            reply.evidence = {
+              tradeId: selected?.id,
+              label: selected
+                ? selected.side.toUpperCase() + " @ " + selected.entry
+                : undefined,
+              decisionCutoff: decision?.cutoff,
+              decisionImage: !!supports && !!decisionImage,
+              currentImage: !!supports && !!currentImage,
+              chartScan: true,
+            };
+            store.db
+              .prepare(
+                "UPDATE decisions SET payload=? WHERE session=? AND id=?",
+              )
+              .run(JSON.stringify(context), s.id, context.snapshotId);
             const content: any = [
               {
                 type: "text",
@@ -1382,32 +1876,61 @@ async function dispatch(c: Command): Promise<any> {
             content.push(...imageParts);
             ai.state = "generating";
             const messages = [
-              { role: "system", content: COACH_PROFILE.system + " Reply in " + replyLanguage(prompt) + ". Explain technical terms in simple everyday words. " + (review ? " This request is a trade review: obey reviewFacts.validityLimit and use actualExecutedEntry for the fill. " : currentChartHint(prompt) ? " This request asks for ONE HINT about the CURRENT chart. Do not answer a previous trade question. Start with the hint, not Yes or No. " : "") },
-              ...(visual ? [] : context.conversation.slice(-4)),
+              {
+                role: "system",
+                content:
+                  COACH_PROFILE.system +
+                  " Reply in " +
+                  replyLanguage(prompt) +
+                  ". Explain technical terms in simple everyday words. " +
+                  (review
+                    ? " This request is a trade review: obey reviewFacts.validityLimit and use actualExecutedEntry for the fill. "
+                    : currentChartHint(prompt)
+                      ? " This request asks for ONE HINT about the CURRENT chart. Do not answer a previous trade question. Start with the hint, not Yes or No. "
+                      : ""),
+              },
+              // Saved references are retrieved explicitly. Old assessment prose must not override the current plan.
               { role: "user", content },
             ];
-            let result = await p.chat(
-              messages,
-              (token) => {
-                if (visual) return; // Validate chart claims before showing them.
-                reply.text += token;
-                if (Date.now() - lastSave > 750) store.save(s);
-                parentPort!.postMessage({
-                  event: "token",
-                  value: { id: reply.id, text: token },
-                });
-              },
-              signal,
-            );
-            const issue = reviewAnswerIssue(result, context) || (!review && currentChartHint(prompt) && /^(?:Yes|No|Unclear),? (?:your|this|the) (?:setup|trade)/i.test(result) ? "Give one hint about the current chart. Do not repeat a prior trade assessment." : null);
+            let result = await p.chat(messages, () => {}, signal);
+            const issue =
+              coachRuleIssue(result) ||
+              coachEvidenceIssue(result, context) ||
+              reviewAnswerIssue(result, context) ||
+              (!review &&
+              currentChartHint(prompt) &&
+              /^(?:Yes|No|Unclear),? (?:your|this|the) (?:setup|trade)/i.test(
+                result,
+              )
+                ? "Give one hint about the current chart. Do not repeat a prior trade assessment."
+                : null);
             if (!settings.structured && issue) {
               reply.rejectedDraft = result;
-              result = await p.chat([...messages, { role: "assistant", content: result }, { role: "user", content: "Correct this evidence error: " + issue + " Answer the current question directly in at most three short sentences. Use the supplied chart facts and images." }], () => {}, signal);
-              const repeated = reviewAnswerIssue(result, context);
+              result = await p.chat(
+                [
+                  ...messages,
+                  { role: "assistant", content: result },
+                  {
+                    role: "user",
+                    content:
+                      "Correct this evidence error: " +
+                      issue +
+                      " Give a direct verdict, two observations, what is missing and one next action in 100–180 words. Never use a candle close as an automatic stop rule. Use only supplied facts.",
+                  },
+                ],
+                () => {},
+                signal,
+              );
+              const repeated =
+                coachRuleIssue(result) ||
+                coachEvidenceIssue(result, context) ||
+                reviewAnswerIssue(result, context);
               if (repeated) {
                 reply.rawText = result;
                 reply.evidenceFallback = true;
-                result = context.selectedTrade ? factualTradeReview(context, replyLanguage(prompt)) : factualChartHint(context, replyLanguage(prompt));
+                result = context.selectedTrade
+                  ? factualTradeReview(context, replyLanguage(prompt))
+                  : coachEvidenceReply(context, prompt);
               }
             }
             reply.rawText ??= result;
@@ -1416,9 +1939,39 @@ async function dispatch(c: Command): Promise<any> {
               const parsed = validateCoachJSON(JSON.parse(result), context);
               reply.text = JSON.stringify(parsed, null, 2);
             } else {
-              const answer = groundedAnswer(result, context);
-              reply.text = answer.text;
-              reply.groundingFiltered = answer.omitted;
+              try {
+                validateGrounding(result, context);
+                reply.text = result;
+              } catch {
+                const repair = await p.chat(
+                  [
+                    ...messages,
+                    { role: "assistant", content: result },
+                    {
+                      role: "user",
+                      content:
+                        "Repair the unsupported numerical claims. Use only exact supplied prices and computed risk. Keep the explanation useful; give no invented values.",
+                    },
+                  ],
+                  () => {},
+                  signal,
+                );
+                try {
+                  validateGrounding(repair, context);
+                  if (
+                    coachRuleIssue(repair) ||
+                    coachEvidenceIssue(repair, context) ||
+                    reviewAnswerIssue(repair, context)
+                  )
+                    throw Error("Unsupported rule");
+                  reply.text = repair;
+                } catch {
+                  reply.evidenceFallback = true;
+                  reply.text = context.selectedTrade
+                    ? factualTradeReview(context, replyLanguage(prompt))
+                    : coachEvidenceReply(context, prompt);
+                }
+              }
             }
             reply.status = "complete";
             ai = {
@@ -1572,11 +2125,24 @@ setInterval(() => {
     publish();
   }
 }, 16).unref();
-if (workerData.autoSetup === true && !replay.session && (!store.chunks("dukascopy").length || store.meta("starterPending", false))) {
+if (
+  workerData.autoSetup === true &&
+  !replay.session &&
+  (!store.chunks("dukascopy").length || store.meta("starterPending", false))
+) {
   store.set("starterPending", true);
-  try { startImport({starter:true}); } catch (e) { error(e); }
+  try {
+    startImport({ starter: true });
+  } catch (e) {
+    error(e);
+  }
 }
-if (workerData.autoSetup !== false && settings.enabled && settings.profile !== "gaming" && !settings.lazy)
+if (
+  workerData.autoSetup !== false &&
+  settings.enabled &&
+  settings.profile !== "gaming" &&
+  !settings.lazy
+)
   getProvider()
     .load()
     .then(publish)

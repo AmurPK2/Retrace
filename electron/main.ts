@@ -22,19 +22,44 @@ import {
 import path from "node:path";
 import { SHELL, appearanceShell } from "../src/core/appearance";
 import { lessonSource } from "../src/core/rr-lessons";
-import { configureTelegram, telegramConfigSchema, type TelegramConfig } from "./telegram-config";
+import {
+  configureTelegram,
+  telegramConfigSchema,
+  type TelegramConfig,
+} from "./telegram-config";
 import { DiscordPresence } from "./discord";
 import { DEFAULT_DISCORD } from "../src/core/discord-presence";
 const project =
-  process.env.XAU_REPLAY_PROJECT_ROOT || (app.isPackaged ? path.dirname(process.execPath) : process.cwd());
+  process.env.XAU_REPLAY_PROJECT_ROOT ||
+  (app.isPackaged ? path.dirname(process.execPath) : process.cwd());
 const root = process.env.XAU_REPLAY_DATA || path.join(project, "data");
 mkdirSync(root, { recursive: true });
 app.setPath("userData", path.join(root, "electron"));
 app.setName("RETRACE");
 app.setAppUserModelId("com.retrace.desktop");
-const telegramFile=path.join(root,"telegram-settings.enc");
-function readTelegram():TelegramConfig|null {if(!existsSync(telegramFile))return null;try{return telegramConfigSchema.parse(JSON.parse(safeStorage.decryptString(readFileSync(telegramFile))));}catch{return null;}}
-function saveTelegram(value:TelegramConfig) {if(!safeStorage.isEncryptionAvailable())throw Error("Windows private storage is unavailable. Telegram credentials were not saved.");const validated=telegramConfigSchema.parse(value);writeFileSync(telegramFile+".tmp",safeStorage.encryptString(JSON.stringify(validated)));require("node:fs").renameSync(telegramFile+".tmp",telegramFile);}
+const telegramFile = path.join(root, "telegram-settings.enc");
+function readTelegram(): TelegramConfig | null {
+  if (!existsSync(telegramFile)) return null;
+  try {
+    return telegramConfigSchema.parse(
+      JSON.parse(safeStorage.decryptString(readFileSync(telegramFile))),
+    );
+  } catch {
+    return null;
+  }
+}
+function saveTelegram(value: TelegramConfig) {
+  if (!safeStorage.isEncryptionAvailable())
+    throw Error(
+      "Windows private storage is unavailable. Telegram credentials were not saved.",
+    );
+  const validated = telegramConfigSchema.parse(value);
+  writeFileSync(
+    telegramFile + ".tmp",
+    safeStorage.encryptString(JSON.stringify(validated)),
+  );
+  require("node:fs").renameSync(telegramFile + ".tmp", telegramFile);
+}
 let window: BrowserWindow | null = null,
   worker: Worker,
   watchdog: ChildProcess,
@@ -46,7 +71,7 @@ const pending = new Map<
   { resolve: (v: any) => void; reject: (e: Error) => void }
 >();
 let lastState: any = null;
-const discordPresence = new DiscordPresence(status => {
+const discordPresence = new DiscordPresence((status) => {
   if (lastState) {
     lastState.discordStatus = status;
     window?.webContents.send("replay:state", lastState);
@@ -96,7 +121,10 @@ async function graceful() {
           }, 8000);
         });
       }
-      await Promise.all([call({ type: "shutdown" }), discordPresence.shutdown()]);
+      await Promise.all([
+        call({ type: "shutdown" }),
+        discordPresence.shutdown(),
+      ]);
       if (watchdog?.connected) watchdog.send({ type: "finished" });
       await worker.terminate();
       allowedQuit = true;
@@ -128,7 +156,13 @@ else {
   });
   app.whenReady().then(() => {
     worker = new Worker(path.join(__dirname, "worker.cjs"), {
-      workerData: { root, project, parentPid: process.pid, autoSetup: true, telegramConfig: readTelegram() },
+      workerData: {
+        root,
+        project,
+        parentPid: process.pid,
+        autoSetup: true,
+        telegramConfig: readTelegram(),
+      },
     });
     worker.on("message", (m) => {
       if (m.id) {
@@ -138,7 +172,10 @@ else {
       } else if (m.event === "state") {
         m.value.discordStatus = discordPresence.status;
         lastState = m.value;
-        discordPresence.update(m.value.discord ?? DEFAULT_DISCORD, m.value.session);
+        discordPresence.update(
+          m.value.discord ?? DEFAULT_DISCORD,
+          m.value.session,
+        );
         if (window && !window.isDestroyed()) {
           const shell = appearanceShell(m.value.appearance?.preset);
           window.setTitleBarOverlay({
@@ -149,7 +186,15 @@ else {
         }
         window?.webContents.send("replay:state", m.value);
       } else if (m.event === "telegram-save") {
-        try { saveTelegram(m.value); } catch { window?.webContents.send("replay:ai", {event:"error",value:"Telegram login could not be saved to encrypted Windows storage."}); }
+        try {
+          saveTelegram(m.value);
+        } catch {
+          window?.webContents.send("replay:ai", {
+            event: "error",
+            value:
+              "Telegram login could not be saved to encrypted Windows storage.",
+          });
+        }
       } else if (m.event === "feed") {
         window?.webContents.send("replay:feed", m.value);
       } else if (
@@ -310,6 +355,11 @@ else {
   });
 }
 const allowed = new Set([
+  "instrument",
+  "challenge.language",
+  "challenge.commit",
+  "challenge.reveal",
+  "challenge.next",
   "study.progress",
   "study.context",
   "study.range",
@@ -343,9 +393,12 @@ const allowed = new Set([
   "position.edit",
   "pending.cancel",
   "pending.edit",
+  "pending.snapshot",
   "specs",
   "risk",
   "drawings",
+  "drawing.patch",
+  "drawing.remove",
   "drawing.undo",
   "drawing.redo",
   "flush",
@@ -377,17 +430,24 @@ ipcMain.handle("replay:call", async (event, c) => {
     throw Error("Invalid command.");
   if (closePromise && !["flush", "state", "study.draft"].includes(c.type))
     throw Error("The app is closing.");
-  if (c.type === "feed.configure") {const value=configureTelegram(c,readTelegram());saveTelegram(value);await call({type:"feed.configure",value});return;}
+  if (c.type === "feed.configure") {
+    const value = configureTelegram(c, readTelegram());
+    saveTelegram(value);
+    await call({ type: "feed.configure", value });
+    return;
+  }
   if (c.type === "app.exit") {
     void graceful();
     return;
   }
-  if (c.type === "discord.portal") return shell.openExternal("https://discord.com/developers/applications");
+  if (c.type === "discord.portal")
+    return shell.openExternal("https://discord.com/developers/applications");
   if (c.type === "discord.icon") {
     shell.showItemInFolder(path.join(project, "assets/RETRACE.png"));
     return;
   }
-  if (c.type === "state") return { ...await call(c), discordStatus: discordPresence.status };
+  if (c.type === "state")
+    return { ...(await call(c)), discordStatus: discordPresence.status };
   if (c.type === "study.source") {
     return shell.openExternal(lessonSource(c.lesson, c.index));
   }
