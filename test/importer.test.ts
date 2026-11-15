@@ -39,5 +39,11 @@ test("BI5 explicit XAU price scale, millisecond units, volume field order and eq
   assert.match(urlFor(hour), /2026\/10\/11\/12h_ticks.bi5$/);
 });
 
-import {retryAfterMs} from "../src/data/importer";
-test("provider retry timing honours numeric and date headers and rejects malformed waits",()=>{const now=Date.UTC(2026,0,1);assert.equal(retryAfterMs("45",now),45000);assert.equal(retryAfterMs(new Date(now+60000).toUTCString(),now),60000);assert.equal(retryAfterMs("broken",now),30000);assert.equal(retryAfterMs("-5",now),1000);});
+import { retryAfterMs } from "../src/data/importer";
+test("provider retry timing honours numeric and date headers and rejects malformed waits", () => {
+  const now = Date.UTC(2026, 0, 1);
+  assert.equal(retryAfterMs("45", now), 45000);
+  assert.equal(retryAfterMs(new Date(now + 60000).toUTCString(), now), 60000);
+  assert.equal(retryAfterMs("broken", now), 30000);
+  assert.equal(retryAfterMs("-5", now), 1000);
+});

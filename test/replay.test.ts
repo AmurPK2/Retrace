@@ -204,3 +204,19 @@ test("CSV timezone conversion detects ambiguous and nonexistent local DST times"
     Date.UTC(2026, 10, 2, 9),
   );
 });
+
+test("historical decision HTF reconstruction ignores later cached extrema and does not mutate the replay", () => {
+  const f = fixture();
+  try {
+    const s = f.replay.newSession("fixture", f.base + 25 * 3600000 + 2 * 60000),
+      at = s.tick.t;
+    f.replay.nextCandle("1H");
+    const before = JSON.stringify(s),
+      htf = f.replay.barsAt(at, "4H");
+    assert.ok(htf.at(-1)!.high <= 2025.02);
+    assert.equal(htf.at(-1)!.close, 2025.02);
+    assert.equal(JSON.stringify(s), before);
+  } finally {
+    f.cleanup();
+  }
+});
