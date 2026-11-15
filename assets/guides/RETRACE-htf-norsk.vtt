@@ -1,0 +1,49 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:05.048
+HTF candles viser større candles ved siden av hovedchartet.
+
+00:00:05.048 --> 00:00:08.213
+Du ser kropp, veker og prisnivåene.
+
+00:00:08.213 --> 00:00:11.905
+Forming betyr at candlen fortsatt utvikler seg.
+
+00:00:11.905 --> 00:00:13.488
+Nedtellingen følger replay-klokken.
+
+00:00:13.488 --> 00:00:17.707
+Appen bruker bare prisene som allerede har kommet.
+
+00:00:17.707 --> 00:00:23.510
+Den henter ikke en fremtidig sluttpris fra den ferdige historiske candlen.
+
+00:00:24.550 --> 00:00:32.774
+Kildevideoen fra Jack Trades viser en Power of Three-variant med en stor candle fra
+indikatoren til Two Degrees.
+
+00:00:32.774 --> 00:00:39.170
+Eksempelet bruker firetimers åpning som kontekst, deretter en lokal bekreftelse og
+en lokal stopp.
+
+00:00:39.170 --> 00:00:43.738
+Det sier ikke at firetimers sluttpris alltid skal være stopp.
+
+00:00:43.738 --> 00:00:47.850
+Dette er et kildeeksempel, ikke en komplett bevist strategi.
+
+00:00:48.883 --> 00:00:52.828
+RETRACE bruker firetimers perioder avgrenset i UTC.
+
+00:00:52.828 --> 00:00:57.336
+Tidssonen endrer etikettene, ikke hvilke priser som inngår.
+
+00:00:57.336 --> 00:01:01.843
+Markedspauser og datagap kan gjøre en periode ufullstendig.
+
+00:01:01.843 --> 00:01:05.788
+Velg størrelse, antall og farger i side-candleinnstillingene.
+
+00:01:05.788 --> 00:01:14.803
+Øvelse: følg den pågående kroppen noen steg, uten å behandle dens nåværende
+sluttpris som ferdig bekreftelse.

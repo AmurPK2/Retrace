@@ -1,0 +1,50 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:04.231
+Kroppen viser forskjellen mellom åpning og siste pris.
+
+00:00:04.231 --> 00:00:07.178
+Vekene viser høyeste og laveste pris.
+
+00:00:07.178 --> 00:00:10.618
+En candle merket Forming utvikler seg fortsatt.
+
+00:00:10.618 --> 00:00:14.057
+Du vet ikke hvor den vil slutte.
+
+00:00:14.057 --> 00:00:18.970
+Bruk ferdige candles når regelen din krever en bekreftet sluttpris.
+
+00:00:20.008 --> 00:00:21.995
+C1 er referansecandlen.
+
+00:00:21.995 --> 00:00:27.956
+C2 er den neste ferdige candlen, og C3 kommer etter.
+
+00:00:27.956 --> 00:00:31.433
+Marker C1 med Marker C1 C2.
+
+00:00:31.433 --> 00:00:36.401
+Sammenlign sluttprisen med C1 sin høyeste og laveste pris.
+
+00:00:36.401 --> 00:00:41.368
+En veke utenfor området er forskjellig fra en sluttpris utenfor.
+
+00:00:41.368 --> 00:00:44.348
+Ingen av delene garanterer neste bevegelse.
+
+00:00:45.383 --> 00:00:48.559
+Fire timer kan vise det større området.
+
+00:00:48.559 --> 00:00:54.002
+Femten, fem eller ett minutt viser hvordan prisen beveger seg inni området.
+
+00:00:54.002 --> 00:00:58.084
+Lavere tidsramme gir flere detaljer, men også mer støy.
+
+00:00:58.084 --> 00:01:04.435
+Øvelse: behold den samme linjen mens du bytter mellom fire timer og femten
+minutter.
+
+00:01:04.435 --> 00:01:08.063
+Skriv hvilken bekreftelse du vil kreve før inngang.

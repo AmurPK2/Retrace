@@ -1,0 +1,45 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:03.756
+Velg Fibonacci og marker to punkter på chartet.
+
+00:00:03.756 --> 00:00:08.077
+Null er det første ankeret, og én er det andre.
+
+00:00:08.077 --> 00:00:10.669
+Nivåene beregnes fra forskjellen mellom prisene.
+
+00:00:10.669 --> 00:00:14.558
+Verktøyet er en måte å måle og tegne på.
+
+00:00:14.558 --> 00:00:19.310
+Det beviser ikke at prisen vil snu ved et bestemt nivå.
+
+00:00:20.342 --> 00:00:24.593
+Velg tegningen for å redigere nivåverdier og etiketter.
+
+00:00:24.593 --> 00:00:28.844
+Du kan endre farge, linjestil, synlighet og sonefyll.
+
+00:00:28.844 --> 00:00:32.032
+Lagre innstillingene som ditt eget preset.
+
+00:00:32.032 --> 00:00:39.472
+Simple preset er et forslag til en enkel visning, ikke en universell lønnsom
+oppskrift.
+
+00:00:40.508 --> 00:00:44.756
+Reverse anchors bytter hvilket punkt som er null og én.
+
+00:00:44.756 --> 00:00:47.730
+Prisene beregnes på nytt i riktig retning.
+
+00:00:47.730 --> 00:00:51.554
+Tegningen beholder ekte tidspunkt og priser når tidsrammen endres.
+
+00:00:51.554 --> 00:01:00.475
+Øvelse: skriv ned prisen ved et nivå, bytt fra fire timer til femten minutter og
+kontroller at den er den samme.
+
+00:01:00.475 --> 00:01:03.448
+Bruk Objects for å finne tegningen igjen.
