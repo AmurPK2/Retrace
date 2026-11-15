@@ -1,0 +1,18 @@
+# Data, units and execution
+
+RETRACE downloads historical bid/ask ticks from [Dukascopy's public historical feed](https://www.dukascopy.com/swiss/english/marketwatch/historical/). Data is historical, not a live quote service. The release contains no market dataset. Coverage is shown per instrument in Data hours; failed or corrupt intervals remain explicit and pause replay execution.
+
+- XAUUSD maps to XAUUSD (price divisor 1,000), USD account, 100 oz per lot, minimum/step 0.01 lot, quote increment 0.001, simulated leverage 1:500.
+- EURAUD maps to EURAUD (divisor 100,000), AUD account, 100,000 EUR per lot, minimum/step 0.01 lot, quote increment 0.00001, simulated leverage 1:30. P&L is directly in AUD; the app does not silently call it USD or invent an AUD/USD conversion.
+- NAS100 maps to Dukascopy USATECHIDXUSD (divisor 1,000). It is a US technology index CFD feed, with one CFD unit worth USD 1 per index point; minimum/step one unit, stored quote increment 0.001, simulated leverage 1:20. Its new practice account starts at USD 10,000 to cover meaningful index-unit margin. This is a simulator assumption, not a quoted broker offer.
+- NQ is visibly unavailable. An NQ futures contract is USD 20 per index point with 0.25-point / USD 5 ticks. No licensed historical contract tick feed, contract expiry selection, rollover or back-adjustment policy is installed. Neither a continuous chart nor a CFD is passed off as a tradable futures contract. A future implementation needs explicit contracts and a documented rollover/execution policy before admission.
+
+Contract and symbol references: [Dukascopy instruments](https://www.dukascopy.com/client/javadoc3/com/dukascopy/api/Instrument.html), [Dukascopy CFD market specifications](https://www.dukascopy.com/swiss/english/cfd/range-of-markets/?lang=en), [CME E-mini Nasdaq-100 contract specifications](https://www.cmegroup.com/markets/equities/nasdaq/e-mini-nasdaq-100.contractSpecs.html).
+
+Gross P&L = direction × (exit − entry) × quantity × contract size. Buys enter at ask and exit at bid; sells reverse that. Bid/ask spreads are therefore included. Commission, slippage, swap and stop-out assumptions are configurable per session. Default explicit commission/slippage/swap are zero, not an assertion that trading is cost-free. Margin follows the instrument's account currency and contract/leverage assumptions. Stops may fill worse after a real price gap.
+
+Calendars are evaluated in America/New_York with DST: FX closes Friday 17:00 and reopens Sunday 17:00; gold has a weekday 17:00–18:00 break; the configured NAS100 CFD break is 16:15–18:00. A whole hour is classified closed only when its beginning and end are closed. Exceptional holidays are not guessed; missing holiday data remains unavailable rather than tradable. UTC is the storage clock; Europe/Oslo can format labels.
+
+The importer validates, hashes and records source chunks, retries with bounded backoff, and resumes completed ranges. Downloads are serialized with a polite delay; 429/503 responses trigger a cooldown. Empty/corrupt/unavailable open-market intervals are not filled with synthetic ticks. Normal market closures use thin separators on compressed chart time. Genuine price discontinuities remain. Next candle processes every intervening tick, including entries and protective exits.
+
+Drawings retain timestamp/price anchors and dataset/session ownership. Compressed-time mapping interpolates against actual adjacent candle timestamps. Loaded drawing/history context is bounded to 90 days / 130,000 bars; this is not an unlimited-history claim. Existing gold sessions retain their original specifications and data roots.

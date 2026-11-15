@@ -1,23 +1,29 @@
-RETRACE for Windows
+RETRACE 0.3.0 for Windows
 
-Extract the entire ZIP, then open RETRACE.exe.
-First setup downloads real starter chart data and about 3.4 GB of local AI files.
-Keep the app open to finish. Downloads resume after an interruption.
-No LM Studio, AI account, API key or Discord application setup is needed.
+Extract the entire ZIP, then open RETRACE.exe. First setup downloads genuine
+starter gold history and about 3.4 GB of pinned, hash-checked local AI files.
+Keep the app open. Interrupted downloads resume. Provider throttling may delay
+price downloads; missing prices are never invented. No AI key/server command
+or Discord Developer Portal setup is required. Windows x64; 16 GB RAM advised.
 
-Discord desktop: Balance, Wins and Check out the project appear automatically.
-Sharing can be turned off in RETRACE Settings. Discord privacy settings apply.
-Learning: select Norsk or English. C1/C2/C3 are three candles in order.
-Trades: the Trades button or History > Show on chart finds entry/exit arrows.
+Right-click the chart for a new order draft. ENTRY, SL and TP move separately.
+Space / Right Arrow: next candle. P: play/pause. Fields and video guides capture
+their own keys. All trades are simulated; there is no broker order route.
 
-Your sessions, prices and AI files stay in the local data folder beside the app.
-Keep that data folder when updating. Back it up separately.
-Telegram is optional and has no preconfigured sources or accounts.
-This is a simulated replay app; there is no broker order route.
+Study > Se videoguidene: six Norwegian offline guides with voice, subtitles
+and fullscreen. New session: free practice or ten beginner challenges.
+HTF candles: original side-candle view. Objects: saved drawing management.
 
-Source, updates and instructions: https://github.com/AmurPK2/Retrace
+XAUUSD, EURAUD and NAS100 CFD have separate feeds/specifications. EURAUD uses
+an AUD practice account. NQ futures need a separate licensed source and are
+not enabled. NAS100 CFD is not NQ. AI answers can still be wrong; computed
+replies and fallbacks are labelled. No strategy or profit is guaranteed.
 
-Video guides: Study > Se videoguidene. Two Norwegian guides with real charts,
-narration, subtitles and fullscreen controls work offline.
-Draw a trend line or ray while holding Shift to lock horizontally or vertically.
-Release Shift to draw freely; Enter also completes a pending two-point line.
+Discord desktop: Balance, Trades taken, RT icon and Check out the project.
+Turn sharing off in Settings. Discord's activity/privacy settings still apply.
+
+Keep your data folder when updating; back it up separately. It contains your
+sessions and settings. Prices/model files stay local and are not in the ZIP.
+Telegram is optional, starts empty, and uses only your own credentials/sources.
+
+Source, releases and documentation: https://github.com/AmurPK2/Retrace
