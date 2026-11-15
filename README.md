@@ -2,7 +2,7 @@
 
 <p align="center"><img src="assets/RETRACE.png" width="112" alt="RETRACE RT logo"></p>
 
-A Windows desktop app for practising on real historical gold charts, reviewing your decisions with local AI, and learning one candle at a time.
+A Windows desktop app for practising on real historical gold, EURAUD and NAS100 CFD charts, reviewing your decisions with local AI, and learning one candle at a time.
 
 **[Download RETRACE for Windows](https://github.com/AmurPK2/Retrace/releases/latest)** · **[Check out the project](https://github.com/AmurPK2/Retrace)**
 
@@ -18,14 +18,26 @@ Internet is needed for initial downloads. Replay and local AI can then work offl
 
 ## What you can do
 
-- **Replay real ticks.** Space plays or pauses; Right Arrow advances to the next candle. Missing unverified price data pauses execution. Market breaks and historical gaps use thin dashed separators, without large empty chart spaces. Genuine price jumps remain visible.
-- **See your trades.** Blue buy and red sell arrows mark actual entries and exits at their execution prices. Dashed links show each trade. **Trades** finds your latest trade; **History → Show on chart** finds an earlier one. The original **Decision chart** stays available.
-- **Ask the chart coach.** Reviews retrieve that exact trade's saved decision chart, original stop/target, drawings and candle evidence. Current-chart hints use the image and candle data from the visible chart window. Answers stay short and use your question's language. Known contradictions are checked before display. Missing entry rules are reported as unclear rather than invented; a profitable result alone does not certify a setup.
-- **Learn plainly.** Learning has Norwegian and English explanations. C1 is the first candle, C2 is the next finished candle, and C3 is the candle after C2. The beginner guide uses real candles from your chart, explains technical words, and walks through saving an idea before revealing its result. Open **Study → Se videoguidene** for two included Norwegian video guides: C1/C2/C3 and getting started. They have narration, large captions, optional subtitles and fullscreen playback, and work offline.
-- **Show progress in Discord.** With Discord desktop open, RETRACE automatically shows **Balance**, **Wins**, the RT icon and **Check out the project**. The button opens this repository. No join invitation, party details, instrument subtitle or elapsed timer is sent. A win counts a fully closed profitable trade after costs and partial exits. Sharing can be switched off in Settings; Discord's own activity/privacy preferences still apply.
+- **Replay real ticks.** Space or Right Arrow advances one candle; P plays or pauses. Missing unverified price data pauses execution. Market breaks and historical gaps use thin dashed separators, without large empty chart spaces. Genuine price jumps remain visible.
+- **See your trades.** Direction-labelled entry and exit arrows mark actual entries and exits at their execution prices. Dashed links show each trade. **Trades** finds your latest trade; **History → Show on chart** finds an earlier one. The original **Decision chart** stays available.
+- **Ask the chart coach.** Reviews retrieve that exact trade's saved decision chart, original stop/target, drawings and candle evidence. Current-chart hints use the image and candle data from the visible chart window. Setup explanations normally use 100–180 words and your question's language. Mark C1/C2 explicitly when those references are ambiguous. Computed evidence replies and model fallbacks are labelled separately. Known contradictions are checked before display. Missing entry rules are reported as unclear rather than invented; a profitable result alone does not certify a setup.
+- **Learn plainly.** Learning has Norwegian and English explanations. C1 is the first candle, C2 is the next finished candle, and C3 is the candle after C2. The beginner guide uses real candles from your chart, explains technical words, and walks through saving an idea before revealing its result. Open **Study → Se videoguidene** for six included Norwegian guides: workflow, candles/timeframes, HTF/PO3, order risk, Fibonacci and coach feedback. They have narration, large captions, optional subtitles and fullscreen playback, and work offline.
+- **Show progress in Discord.** With Discord desktop open, RETRACE automatically shows **Balance**, **Trades taken**, the RT icon and **Check out the project**. The button opens this repository. No join invitation, party details, instrument subtitle or elapsed timer is sent. Each actually filled entry counts once across open positions and all partial exits; pending and cancelled orders do not count. Sharing can be switched off in Settings; Discord's own activity/privacy preferences still apply.
 - **Draw and save.** Hold **Shift** while drawing a trend line or ray, or moving one endpoint, to lock to the nearest horizontal or vertical axis. Release Shift to draw freely. Click two points or drag; Enter also finishes a pending two-point line. Lines, rays, rectangles, position plans, indicators, notes and practice sessions persist locally. Continue restores the replay paused. Export a session backup from the session menu.
 
 This is a simulated replay workspace, with no broker order route. Balances, positions and Discord numbers are practice results. The local model can still make mistakes; its answer is not proof of a trading edge.
+
+## Chart-first workflow in 0.3.0
+
+Right-click the chart and choose **New order draft here**. ENTRY, SL and TP move independently; invalid geometry stays visible until corrected. **Place order** confirms the simulator order. Change size on the draft or pending line; filled quantities remain execution history. **Add entry · same setup** keeps a shared setup and stop while allowing a separate entry/target. Combined planned risk counts each entry once.
+
+Use **Objects** to name, hide, lock or delete drawings; undo restores deletion. Time/price anchors persist across 4H, 1H, 15m, 5m and 1m. Fibonacci offers editable levels, labels, colours, line styles, fills, reversal and saved presets. **HTF candles** opens the original side-candle display with adjustable timeframe, count, width, spacing, colours and levels. The current candle is marked **Forming** and only uses prices through the replay clock.
+
+At **New session**, choose free practice or one of ten beginner challenges. Answers and available evidence are saved before revealing later prices. The checks cover factual observations, order geometry and stated budgets; open-ended reasoning is retained for reflection, not automatically certified by a model or scored by profit.
+
+**XAUUSD, EURAUD and NAS100 CFD use distinct real tick feeds and specifications. NQ futures are not enabled:** no licensed, contract-aware NQ tick source or continuous rollover policy is bundled. NAS100 is never renamed NQ. EURAUD practice uses an AUD-denominated account; NAS100 uses CFD units and a USD account. See [data and execution assumptions](docs/DATA.md).
+
+The 4H source example is PO3, separate from the C1/C2/C3 exercises. See [source timestamps and HTF boundaries](docs/HTF-SOURCES.md). Local model reviews remain experimental: [evaluation and limits](docs/COACH-EVALUATION.md).
 
 ## Your own data and optional Telegram sources
 
