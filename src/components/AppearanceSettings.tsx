@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { PALETTES, type Appearance } from "../core/appearance";
+import { PALETTES, orderColors, type Appearance } from "../core/appearance";
 export function AppearanceSettings({
   value,
   save,
@@ -78,6 +78,30 @@ export function AppearanceSettings({
         />
         Place and drag order levels on the chart
       </label>
+      <div className="settings-grid">
+        {(["buy", "sell", "sl", "tp"] as const).map((key) => (
+          <label className="field" key={key}>
+            <span>{key.toUpperCase()} line</span>
+            <input
+              type="color"
+              value={
+                look.orderColors?.[key] ??
+                orderColors(look.preset === "lavender")[key]
+              }
+              onChange={(e) =>
+                setLook({
+                  ...look,
+                  orderColors: {
+                    ...orderColors(look.preset === "lavender"),
+                    ...look.orderColors,
+                    [key]: e.target.value,
+                  },
+                })
+              }
+            />
+          </label>
+        ))}
+      </div>
       <div className="modal-actions">
         <label className="field">
           <span>Magnet</span>

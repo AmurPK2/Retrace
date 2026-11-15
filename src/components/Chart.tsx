@@ -1,3 +1,4 @@
+import { INSTRUMENTS, instrumentForDataset } from "../core/instruments";
 import {
   useEffect,
   useRef,
@@ -115,8 +116,15 @@ export const Chart = forwardRef<
     planLots?: number;
     onPendingEdit?: (
       id: string,
-      changes: { price?: number; sl?: number; tp?: number },
+      changes: { price?: number; sl?: number; tp?: number; lots?: number },
     ) => void;
+    onContext?: (value: {
+      x: number;
+      y: number;
+      price: number;
+      time: number;
+    }) => void;
+    onDraftLots?: (lots: number) => void;
     onCancelDraft?: () => void;
     onCancelPending?: (id: string) => void;
   }
@@ -143,6 +151,8 @@ export const Chart = forwardRef<
     onPendingEdit,
     onCancelDraft,
     onCancelPending,
+    onContext,
+    onDraftLots,
   },
   ref,
 ) {
@@ -196,7 +206,10 @@ export const Chart = forwardRef<
     price: number;
   } | null>(null);
   const palette = PALETTES[appearance.preset];
-  const tradeColors = orderColors(appearance.preset === "lavender");
+  const tradeColors = {
+    ...orderColors(appearance.preset === "lavender"),
+    ...appearance.orderColors,
+  };
   useEffect(() => {
     if (
       (tool !== "ray" && tool !== "trend") ||
@@ -331,7 +344,11 @@ export const Chart = forwardRef<
     const ro = new ResizeObserver((entries) => {
       const { width, height } = entries[0].contentRect;
       if (width > 0 && height > 0) {
+        const timeRange = c.timeScale().getVisibleLogicalRange();
+        const priceRange = c.priceScale("right").getVisibleRange();
         c.resize(width, height);
+        if (timeRange) c.timeScale().setVisibleLogicalRange(timeRange);
+        if (priceRange) c.priceScale("right").setVisibleRange(priceRange);
         setDims({ w: width, h: height });
         update();
       }
@@ -369,11 +386,59 @@ export const Chart = forwardRef<
       indicatorSeries.current = [];
     };
   }, [secondary]);
+  const previousData = useRef<{
+    session: string;
+    tf: TF;
+    cutoff: number;
+    times: number[];
+  } | null>(null);
   useEffect(() => {
-    if (!series.current) return;
+    if (!series.current || !chart.current) return;
+    const previous = previousData.current,
+      c = chart.current;
+    const preserve = previous?.session === s.id && previous.tf === timeframe;
+    const range = preserve ? c.timeScale().getVisibleLogicalRange() : null;
+    const view =
+      range && previous
+        ? {
+            from: timeAtLogical(
+              previous.times,
+              Number(range.from),
+              FRAMES[timeframe],
+            ),
+            to: timeAtLogical(
+              previous.times,
+              Number(range.to),
+              FRAMES[timeframe],
+            ),
+          }
+        : null;
+    const priceRange =
+      preserve && previous?.cutoff === s.tick.t
+        ? c.priceScale("right").getVisibleRange()
+        : null;
+    series.current.applyOptions({
+      priceFormat: {
+        type: "price",
+        precision: s.broker.specs.precision,
+        minMove: s.broker.specs.tickSize ?? 10 ** -s.broker.specs.precision,
+      },
+    });
     series.current.setData(
       timeline.map((b) => ({ ...b, time: b.time as UTCTimestamp })),
     );
+    if (view)
+      c.timeScale().setVisibleLogicalRange({
+        from: logicalAtTime(times, view.from, FRAMES[timeframe]),
+        to: logicalAtTime(times, view.to, FRAMES[timeframe]),
+      });
+    if (priceRange) c.priceScale("right").setVisibleRange(priceRange);
+    previousData.current = {
+      session: s.id,
+      tf: timeframe,
+      cutoff: s.tick.t,
+      times,
+    };
     repaint((x) => x + 1);
   }, [timeline]);
   useEffect(() => {
@@ -536,12 +601,10 @@ export const Chart = forwardRef<
       const from = logicalAtTime(times, first, FRAMES[timeframe]);
       const to = logicalAtTime(times, last, FRAMES[timeframe]);
       chart.current.priceScale("right").applyOptions({ autoScale: true });
-      chart.current
-        .timeScale()
-        .setVisibleLogicalRange({
-          from: from - 18,
-          to: Math.max(to + 18, from + 48),
-        } as any);
+      chart.current.timeScale().setVisibleLogicalRange({
+        from: from - 18,
+        to: Math.max(to + 18, from + 48),
+      } as any);
       return true;
     },
     focusStudy: () => {
@@ -767,6 +830,19 @@ export const Chart = forwardRef<
       target = e.target as SVGElement,
       id = target.closest<SVGElement>("[data-id]")?.dataset.id,
       handle = target.dataset.handle;
+    if (
+      id ||
+      target.dataset.orderRole ||
+      target.dataset.pending ||
+      target.dataset.position ||
+      tool !== "select" ||
+      picker ||
+      studyPicking
+    ) {
+      e.stopPropagation();
+      e.preventDefault();
+      chart.current?.applyOptions({ handleScroll: false, handleScale: false });
+    }
     lastLinePoint.current = p;
     if (studyPicking && onStudyPick) {
       const nearest = bars.reduce((a, b) =>
@@ -783,7 +859,7 @@ export const Chart = forwardRef<
       onOrderLevel(picker, p.price);
       return;
     }
-    if (target.dataset.orderRole && onOrderLevel) {
+    if (tool === "select" && target.dataset.orderRole && onOrderLevel) {
       drag.current = { type: "order", role: target.dataset.orderRole };
       drag.current.original = orderDraft;
       setOrderPreview({
@@ -794,7 +870,7 @@ export const Chart = forwardRef<
       e.preventDefault();
       return;
     }
-    if (target.dataset.position) {
+    if (tool === "select" && target.dataset.position) {
       const pos = s.broker.positions.find(
         (p) => p.id === target.dataset.position,
       )!;
@@ -807,7 +883,7 @@ export const Chart = forwardRef<
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
     }
-    if (target.dataset.pending) {
+    if (tool === "select" && target.dataset.pending) {
       const order = s.broker.pending.find(
         (p) => p.id === target.dataset.pending,
       );
@@ -981,11 +1057,7 @@ export const Chart = forwardRef<
       onPendingEdit?.(
         order.id,
         role === "entry"
-          ? {
-              price,
-              sl: order.sl === undefined ? undefined : order.sl + delta,
-              tp: order.tp === undefined ? undefined : order.tp + delta,
-            }
+          ? { price }
           : role === "sl"
             ? { sl: price }
             : { tp: price },
@@ -1011,7 +1083,10 @@ export const Chart = forwardRef<
       handleScale: tool === "select",
     });
   };
-  const drawings = [...(changed ?? s.drawings), ...(draft ? [draft] : [])];
+  const drawings = [
+    ...(changed ?? s.drawings),
+    ...(draft ? [draft] : []),
+  ].filter((d) => !d.hidden);
   const active = hover ?? bars.at(-1);
   const paneHeight = chart.current?.panes()[0]?.getHeight() ?? dims.h;
   const overlays = s.indicators.filter((i) => i.enabled);
@@ -1041,8 +1116,8 @@ export const Chart = forwardRef<
       kind: p.kind,
       entry: p.price! + delta,
       lots: p.lots,
-      sl: role === "sl" ? price : p.sl === undefined ? undefined : p.sl + delta,
-      tp: role === "tp" ? price : p.tp === undefined ? undefined : p.tp + delta,
+      sl: role === "sl" ? price : p.sl,
+      tp: role === "tp" ? price : p.tp,
     };
     const next =
       p.automaticLevel && role === "entry"
@@ -1060,6 +1135,24 @@ export const Chart = forwardRef<
   return (
     <div
       className={"chart " + (secondary ? "secondary" : "")}
+      onContextMenu={(e) => {
+        if (
+          secondary ||
+          !bars.length ||
+          (e.target as Element).closest("input,button,select")
+        )
+          return;
+        e.preventDefault();
+        e.stopPropagation();
+        const r = e.currentTarget.getBoundingClientRect();
+        const p = point(e.clientX - r.left, e.clientY - r.top);
+        onContext?.({
+          x: e.clientX,
+          y: e.clientY,
+          price: p.price,
+          time: p.time,
+        });
+      }}
       onDragStart={(e) => e.preventDefault()}
       onPointerDown={(e) => {
         if (
@@ -1073,16 +1166,56 @@ export const Chart = forwardRef<
       }}
     >
       <div ref={host} className="chart-canvas" />
+      {!secondary && (
+        <div
+          className="chart-order-sizes"
+          onPointerDown={(e) => e.stopPropagation()}
+        >
+          {visibleDraft && (
+            <label>
+              Draft size{" "}
+              <input
+                aria-label="Draft size"
+                type="number"
+                min={s.broker.specs.minLot}
+                step={s.broker.specs.lotStep}
+                value={visibleDraft.lots}
+                onChange={(e) => onDraftLots?.(Number(e.target.value))}
+              />
+            </label>
+          )}
+          {s.broker.pending.map((p) => (
+            <label key={p.id}>
+              {p.side.toUpperCase()} @{" "}
+              {p.price?.toFixed(s.broker.specs.precision)}{" "}
+              <input
+                aria-label={"Pending size " + p.id}
+                type="number"
+                min={s.broker.specs.minLot}
+                step={s.broker.specs.lotStep}
+                defaultValue={p.lots}
+                key={p.id + ":" + p.lots}
+                onBlur={(e) => {
+                  const lots = Number(e.target.value);
+                  if (lots !== p.lots) onPendingEdit?.(p.id, { lots });
+                }}
+              />
+            </label>
+          ))}
+        </div>
+      )}
       <div className="chart-caption">
-        <strong>XAUUSD</strong>
+        <strong>{instrumentForDataset(s.dataset)}</strong>
         <span>
           {timeframe} per candle ·{" "}
-          {s.dataset === "dukascopy" ? "Dukascopy" : "CSV"} / bid
+          {s.dataset.startsWith("dukascopy") ? "Dukascopy" : "CSV"} / bid
         </span>
         {active && (
           <span className="ohlc">
-            O {active.open.toFixed(3)}　H {active.high.toFixed(3)}　L{" "}
-            {active.low.toFixed(3)}　C <b>{active.close.toFixed(3)}</b>
+            O {active.open.toFixed(s.broker.specs.precision)}　H{" "}
+            {active.high.toFixed(s.broker.specs.precision)}　L{" "}
+            {active.low.toFixed(s.broker.specs.precision)}　C{" "}
+            <b>{active.close.toFixed(s.broker.specs.precision)}</b>
           </span>
         )}
       </div>
@@ -1242,7 +1375,7 @@ export const Chart = forwardRef<
                 strokeDasharray="3 6"
               />
               <text x={12} y={y(l.p) - 5} fill={palette.muted} fontSize="10">
-                {l.label} {l.p.toFixed(3)}
+                {l.label} {l.p.toFixed(s.broker.specs.precision)}
               </text>
             </g>
           ))}
@@ -1294,12 +1427,23 @@ export const Chart = forwardRef<
                       fill={d.color}
                       fontSize="11"
                     >
-                      {d.label || d.a.price.toFixed(3)}
+                      {d.label || d.a.price.toFixed(s.broker.specs.precision)}
                     </text>
                   </>
                 )}
                 {d.kind === "trend" && (
-                  <line {...attrs} x1={xa} y1={ya} x2={xb} y2={yb} />
+                  <>
+                    <line
+                      {...attrs}
+                      x1={xa}
+                      y1={ya}
+                      x2={xb}
+                      y2={yb}
+                      stroke="transparent"
+                      strokeWidth={14}
+                    />
+                    <line {...attrs} x1={xa} y1={ya} x2={xb} y2={yb} />
+                  </>
                 )}
                 {d.kind === "ray" &&
                   (() => {
@@ -1351,18 +1495,63 @@ export const Chart = forwardRef<
                 )}
                 {d.kind === "fib" &&
                   d.levels.map((level, index) => {
+                    const st = d.fibStyles?.[String(level)] ?? {
+                      color: [
+                        "#e6e6e6",
+                        "#65b8df",
+                        "#5dd995",
+                        "#ffd080",
+                        "#ff9b4a",
+                        "#cf96f0",
+                        "#e6e6e6",
+                      ][index % 7],
+                      label: String(level),
+                      visible: true,
+                      style: "dashed",
+                    };
+                    if (!st.visible) return null;
                     const price = d.a.price + (d.b.price - d.a.price) * level,
                       yy = y(price);
                     return (
                       <g key={level}>
+                        {(d.fibFill ?? true) && index > 0 && (
+                          <rect
+                            {...attrs}
+                            x={left}
+                            width={w}
+                            y={Math.min(
+                              yy,
+                              y(
+                                d.a.price +
+                                  (d.b.price - d.a.price) * d.levels[index - 1],
+                              ),
+                            )}
+                            height={Math.abs(
+                              yy -
+                                y(
+                                  d.a.price +
+                                    (d.b.price - d.a.price) *
+                                      d.levels[index - 1],
+                                ),
+                            )}
+                            stroke="none"
+                            fill={st.color}
+                            fillOpacity={0.08}
+                          />
+                        )}
                         <line
                           {...attrs}
                           x1={left}
                           y1={yy}
                           x2={left + w}
                           y2={yy}
+                          stroke={st.color}
                           strokeDasharray={
-                            level === 0 || level === 1 ? "" : "4 3"
+                            st.style === "solid"
+                              ? ""
+                              : st.style === "dotted"
+                                ? "2 3"
+                                : "6 4"
                           }
                         />
                         {(index === 0 ||
@@ -1383,10 +1572,11 @@ export const Chart = forwardRef<
                           <text
                             x={left + 4}
                             y={yy - 5}
-                            fill={d.color}
+                            fill={st.color}
                             fontSize="10"
                           >
-                            {level} · {price.toFixed(3)}
+                            {st.label} ·{" "}
+                            {price.toFixed(s.broker.specs.precision)}
                           </text>
                         )}
                       </g>
@@ -1462,8 +1652,10 @@ export const Chart = forwardRef<
                             fill={palette.down}
                             fontSize="10"
                           >
-                            SL {stop.toFixed(3)}
-                            {w > 230 ? ` · $${risk.toFixed(2)}` : ""}
+                            SL {stop.toFixed(s.broker.specs.precision)}
+                            {w > 230
+                              ? ` · ${s.broker.specs.currency ?? "USD"} ${risk.toFixed(2)}`
+                              : ""}
                           </text>
                         )}
                         {selected === d.id && (
@@ -1473,8 +1665,10 @@ export const Chart = forwardRef<
                             fill={palette.up}
                             fontSize="10"
                           >
-                            TP {target.toFixed(3)}
-                            {w > 230 ? ` · +$${reward.toFixed(2)}` : ""}
+                            TP {target.toFixed(s.broker.specs.precision)}
+                            {w > 230
+                              ? ` · +${s.broker.specs.currency ?? "USD"} ${reward.toFixed(2)}`
+                              : ""}
                           </text>
                         )}
                       </>
@@ -1489,7 +1683,7 @@ export const Chart = forwardRef<
                       data-handle={key}
                       cx={hx}
                       cy={hy}
-                      r={4}
+                      r={6}
                       fill={palette.bg}
                       stroke={palette.accent}
                       strokeWidth={2}
@@ -1548,8 +1742,24 @@ export const Chart = forwardRef<
                       x2={dims.w - 70}
                       y1={yy}
                       y2={yy}
+                      stroke="transparent"
+                      strokeWidth={14}
+                      style={{ pointerEvents: "stroke", cursor: "ns-resize" }}
+                    />
+                    <line
+                      data-order-role={role}
+                      x1={0}
+                      x2={dims.w - 70}
+                      y1={yy}
+                      y2={yy}
                       stroke={color}
-                      strokeDasharray="5 5"
+                      strokeDasharray={
+                        role === "sl"
+                          ? "3 3"
+                          : role === "tp"
+                            ? "9 3 2 3"
+                            : "7 4"
+                      }
                       style={{ pointerEvents: "stroke", cursor: "ns-resize" }}
                       strokeWidth={1.5}
                     />
@@ -1572,8 +1782,8 @@ export const Chart = forwardRef<
                       style={{ pointerEvents: "none" }}
                     >
                       {role === "entry"
-                        ? `${levelLabel(visibleDraft.side)} ${price.toFixed(3)}`
-                        : `${role.toUpperCase()} ${price.toFixed(3)} · $${cash!.toFixed(2)}`}
+                        ? `${visibleDraft.side.toUpperCase()} ${price.toFixed(s.broker.specs.precision)} · ${visibleDraft.lots} ${s.broker.specs.unit ?? "lot"}`
+                        : `${role.toUpperCase()} ${price.toFixed(s.broker.specs.precision)} · ${s.broker.specs.currency ?? "USD"} ${cash!.toFixed(2)}`}
                     </text>
                     {role === "entry" && onCancelDraft && (
                       <g
@@ -1613,7 +1823,7 @@ export const Chart = forwardRef<
                 );
               })}
           {!secondary &&
-            visiblePending.flatMap((p) =>
+            visiblePending.flatMap((p, pendingIndex) =>
               (
                 [
                   { role: "entry", price: p.price },
@@ -1642,6 +1852,17 @@ export const Chart = forwardRef<
                         x2={dims.w - 70}
                         y1={yy}
                         y2={yy}
+                        stroke="transparent"
+                        strokeWidth={14}
+                        style={{ pointerEvents: "stroke", cursor: "ns-resize" }}
+                      />
+                      <line
+                        data-pending={p.id}
+                        data-kind={level.role}
+                        x1={0}
+                        x2={dims.w - 70}
+                        y1={yy}
+                        y2={yy}
                         stroke={color}
                         strokeDasharray="3 4"
                         style={{ pointerEvents: "stroke", cursor: "ns-resize" }}
@@ -1649,7 +1870,7 @@ export const Chart = forwardRef<
                       <rect
                         data-pending={p.id}
                         data-kind={level.role}
-                        x={Math.max(8, dims.w - 280)}
+                        x={Math.max(8, dims.w - 280 - (pendingIndex % 4) * 210)}
                         y={yy - 11}
                         width={200}
                         height={22}
@@ -1659,7 +1880,10 @@ export const Chart = forwardRef<
                         style={{ pointerEvents: "all", cursor: "ns-resize" }}
                       />
                       <text
-                        x={Math.max(13, dims.w - 274)}
+                        x={Math.max(
+                          13,
+                          dims.w - 274 - (pendingIndex % 4) * 210,
+                        )}
                         y={yy + 3}
                         fill={color}
                         fontSize={10}
@@ -1667,7 +1891,16 @@ export const Chart = forwardRef<
                         {level.role === "entry"
                           ? levelLabel(p.side)
                           : level.role.toUpperCase()}{" "}
-                        {price.toFixed(3)} · {p.lots}
+                        {price.toFixed(s.broker.specs.precision)} ·{" "}
+                        {level.role === "entry"
+                          ? p.lots + " " + (s.broker.specs.unit ?? "lot")
+                          : (s.broker.specs.currency ?? "USD") +
+                            " " +
+                            (
+                              Math.abs(price - p.price!) *
+                              p.lots *
+                              s.broker.specs.contract
+                            ).toFixed(2)}
                       </text>
                       {level.role === "entry" && onCancelPending && (
                         <g
@@ -1723,6 +1956,22 @@ export const Chart = forwardRef<
                   const yy = y(price);
                   return (
                     <g key={p.id + l.kind}>
+                      {l.kind !== "entry" && (
+                        <line
+                          data-position={p.id}
+                          data-kind={l.kind}
+                          x1={0}
+                          x2={dims.w - 70}
+                          y1={yy}
+                          y2={yy}
+                          stroke="transparent"
+                          strokeWidth={14}
+                          style={{
+                            pointerEvents: "stroke",
+                            cursor: "ns-resize",
+                          }}
+                        />
+                      )}
                       <line
                         x1={0}
                         x2={dims.w - 70}
@@ -1760,9 +2009,10 @@ export const Chart = forwardRef<
                         }
                         fontSize="10"
                       >
-                        {l.kind.toUpperCase()} {price.toFixed(3)} · {p.lots} ·{" "}
+                        {l.kind.toUpperCase()}{" "}
+                        {price.toFixed(s.broker.specs.precision)} · {p.lots} ·{" "}
                         {l.kind !== "entry"
-                          ? `$${pnl(p.side, p.entry, price, p.lots, s.broker.specs.contract).toFixed(2)}`
+                          ? `${s.broker.specs.currency ?? "USD"} ${pnl(p.side, p.entry, price, p.lots, s.broker.specs.contract).toFixed(2)}`
                           : p.side}
                       </text>
                     </g>

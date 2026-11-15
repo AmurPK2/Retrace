@@ -208,10 +208,33 @@ export function AssistantPanel({
             ) : (
               <Answer text={messageBody(m)} />
             )}
-            {m.evidence && <p className="assistant-note">{m.evidence.label ? m.evidence.label + " · " : ""}{m.evidence.decisionImage ? "Decision chart + " : ""}{m.evidence.currentImage ? "current chart + " : ""}saved chart data{m.evidence.tradeId && !m.evidence.decisionImage ? " · decision image not analysed" : ""}</p>}
-            {m.historyAnswer && <p className="assistant-note">From this session’s saved trade history.</p>}
-            {m.evidenceFallback && <p className="assistant-note">Saved-data reply · an AI draft could not be verified.</p>}
-            {m.groundingFiltered && (
+            {m.evidence && (
+              <p className="assistant-note">
+                {m.evidence.label ? m.evidence.label + " · " : ""}
+                {m.evidence.decisionImage ? "Decision chart + " : ""}
+                {m.evidence.currentImage ? "current chart + " : ""}saved chart
+                data
+                {m.evidence.tradeId && !m.evidence.decisionImage
+                  ? " · decision image not analysed"
+                  : ""}
+              </p>
+            )}
+            {m.savedFacts && (
+              <p className="assistant-note">
+                From the current replay references and learning guide.
+              </p>
+            )}
+            {m.historyAnswer && (
+              <p className="assistant-note">
+                From this session’s saved trade history.
+              </p>
+            )}
+            {m.evidenceFallback && (
+              <p className="assistant-note">
+                Saved-data reply · an AI draft could not be verified.
+              </p>
+            )}
+            {false && m.groundingFiltered && (
               <p className="assistant-note">
                 Unverified numerical sentences omitted.
               </p>
@@ -226,43 +249,77 @@ export function AssistantPanel({
         ))}
       </div>
       <div className="assistant-compose">
-        <label className="assistant-trade-target"><span>Question refers to</span>
-          <select aria-label="Trade to review" value={tradeId} onChange={e => setTradeId(e.target.value)}>
-            <option value="auto">Auto · latest trade for reviews</option>
-            <option value="chart">Current chart / draft</option>
-            {state.session && sessionTrades(state.session).slice(0, 30).map(t => <option key={t.id} value={t.id}>{t.side.toUpperCase()} @ {t.entry.toFixed(3)} · {new Date(t.opened).toLocaleString("en-GB", { timeZone: state.session!.layout.timezone, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} · {t.status}</option>)}
-          </select>
-        </label>
-        <div className="assistant-compose-options">
-          <select
-            aria-label="Assistant mode"
-            value={mode}
-            onChange={(e) => setMode(e.target.value)}
-          >
-            <option>Check setup</option>
-            <option>Give a hint</option>
-            <option>Review trade</option>
-            <option>Open chat</option>
-          </select>
-          <button
-            title={
-              state.settings.vision
-                ? "Scan images for every question"
-                : "Auto scan: trade reviews, setup checks and hints use chart images"
-            }
-            aria-pressed={state.settings.vision}
-            className={state.settings.vision ? "image-on" : ""}
-            onClick={() =>
-              act({
-                type: "ai.settings",
-                value: { ...state.settings, vision: !state.settings.vision },
-              })
-            }
-          >
-            <Image size={14} />
-            {state.settings.vision ? "Always scan" : "Auto scan"}
-          </button>
-        </div>
+        <button
+          className="coach-assess"
+          onClick={() => {
+            setMode("Check setup");
+            setDraft(
+              "Vurder oppsettet mitt. Forklar candlegrunnlaget, begge innganger hvis relevant, risiko og neste læringspunkt.",
+            );
+          }}
+        >
+          Vurder oppsettet
+        </button>
+        <details>
+          <summary>Earlier trade / advanced context</summary>
+          <label className="assistant-trade-target">
+            <span>Question refers to</span>
+            <select
+              aria-label="Trade to review"
+              value={tradeId}
+              onChange={(e) => setTradeId(e.target.value)}
+            >
+              <option value="auto">Auto · latest trade for reviews</option>
+              <option value="chart">Current chart / draft</option>
+              {state.session &&
+                sessionTrades(state.session)
+                  .slice(0, 30)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.side.toUpperCase()} @ {t.entry.toFixed(3)} ·{" "}
+                      {new Date(t.opened).toLocaleString("en-GB", {
+                        timeZone: state.session!.layout.timezone,
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      · {t.status}
+                    </option>
+                  ))}
+            </select>
+          </label>
+          <div className="assistant-compose-options">
+            <select
+              aria-label="Assistant mode"
+              value={mode}
+              onChange={(e) => setMode(e.target.value)}
+            >
+              <option>Check setup</option>
+              <option>Give a hint</option>
+              <option>Review trade</option>
+              <option>Open chat</option>
+            </select>
+            <button
+              title={
+                state.settings.vision
+                  ? "Scan images for every question"
+                  : "Auto scan: trade reviews, setup checks and hints use chart images"
+              }
+              aria-pressed={state.settings.vision}
+              className={state.settings.vision ? "image-on" : ""}
+              onClick={() =>
+                act({
+                  type: "ai.settings",
+                  value: { ...state.settings, vision: !state.settings.vision },
+                })
+              }
+            >
+              <Image size={14} />
+              {state.settings.vision ? "Always scan" : "Auto scan"}
+            </button>
+          </div>
+        </details>
         <textarea
           aria-label="Message Chart Assistant"
           placeholder={

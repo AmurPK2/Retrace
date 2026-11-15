@@ -3,32 +3,86 @@ import { Play, X } from "lucide-react";
 
 const guides = [
   {
-    title: "C1, C2 og C3 – enkelt forklart",
+    title: "Kom i gang med den nye arbeidsflyten",
     src: new URL(
-      "../../assets/guides/RETRACE-C1-C2-C3-norsk.mp4",
+      "../../assets/guides/RETRACE-workflow-norsk.mp4",
       import.meta.url,
     ).href,
     poster: new URL(
-      "../../assets/guides/RETRACE-C1-C2-C3-norsk-poster.jpg",
+      "../../assets/guides/RETRACE-workflow-norsk-poster.jpg",
       import.meta.url,
     ).href,
     captions: new URL(
-      "../../assets/guides/RETRACE-C1-C2-C3-norsk.vtt?no-inline",
+      "../../assets/guides/RETRACE-workflow-norsk.vtt?no-inline",
       import.meta.url,
     ).href,
   },
   {
-    title: "Slik bruker du RETRACE",
+    title: "C1, C2, C3 og tidsrammer",
     src: new URL(
-      "../../assets/guides/RETRACE-kom-i-gang-norsk.mp4",
+      "../../assets/guides/RETRACE-candles-norsk.mp4",
       import.meta.url,
     ).href,
     poster: new URL(
-      "../../assets/guides/RETRACE-kom-i-gang-norsk-poster.jpg",
+      "../../assets/guides/RETRACE-candles-norsk-poster.jpg",
       import.meta.url,
     ).href,
     captions: new URL(
-      "../../assets/guides/RETRACE-kom-i-gang-norsk.vtt?no-inline",
+      "../../assets/guides/RETRACE-candles-norsk.vtt?no-inline",
+      import.meta.url,
+    ).href,
+  },
+  {
+    title: "4H og den store side-candlen",
+    src: new URL("../../assets/guides/RETRACE-htf-norsk.mp4", import.meta.url)
+      .href,
+    poster: new URL(
+      "../../assets/guides/RETRACE-htf-norsk-poster.jpg",
+      import.meta.url,
+    ).href,
+    captions: new URL(
+      "../../assets/guides/RETRACE-htf-norsk.vtt?no-inline",
+      import.meta.url,
+    ).href,
+  },
+  {
+    title: "SL, TP, størrelse og to innganger",
+    src: new URL("../../assets/guides/RETRACE-risk-norsk.mp4", import.meta.url)
+      .href,
+    poster: new URL(
+      "../../assets/guides/RETRACE-risk-norsk-poster.jpg",
+      import.meta.url,
+    ).href,
+    captions: new URL(
+      "../../assets/guides/RETRACE-risk-norsk.vtt?no-inline",
+      import.meta.url,
+    ).href,
+  },
+  {
+    title: "Tilpass Fibonacci",
+    src: new URL(
+      "../../assets/guides/RETRACE-fibonacci-norsk.mp4",
+      import.meta.url,
+    ).href,
+    poster: new URL(
+      "../../assets/guides/RETRACE-fibonacci-norsk-poster.jpg",
+      import.meta.url,
+    ).href,
+    captions: new URL(
+      "../../assets/guides/RETRACE-fibonacci-norsk.vtt?no-inline",
+      import.meta.url,
+    ).href,
+  },
+  {
+    title: "Få og forstå AI-feedback",
+    src: new URL("../../assets/guides/RETRACE-coach-norsk.mp4", import.meta.url)
+      .href,
+    poster: new URL(
+      "../../assets/guides/RETRACE-coach-norsk-poster.jpg",
+      import.meta.url,
+    ).href,
+    captions: new URL(
+      "../../assets/guides/RETRACE-coach-norsk.vtt?no-inline",
       import.meta.url,
     ).href,
   },
@@ -112,6 +166,17 @@ export function VideoGuides({ norwegian }: { norwegian: boolean }) {
               label="Norsk"
             />
           </video>
+          <button
+            onClick={() =>
+              window.replay.call({
+                type: "study.source",
+                lesson: "po3",
+                index: 0,
+              })
+            }
+          >
+            Kilde: JackTrades · HTF / PO3 · 4:11–5:21
+          </button>
           <p>
             {norwegian
               ? "Ekte skjermbilder og replay fra RETRACE, med norsk tale og stor tekst. Bruk fullskjermknappen for et større bilde. Videoene følger med appen og virker uten nett."

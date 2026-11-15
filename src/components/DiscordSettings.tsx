@@ -116,7 +116,7 @@ export function DiscordSettings({
           </ol>
           <p className="micro">
             No account token or bot is needed. Balance includes booked profit
-            and costs; open profit is excluded. Wins count fully closed
+            and costs; open profit is excluded. Trades taken count fully closed
             profitable trades after all partial exits and costs.
           </p>
         </details>

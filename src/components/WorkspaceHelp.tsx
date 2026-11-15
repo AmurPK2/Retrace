@@ -89,6 +89,10 @@ export function WorkspaceHelp() {
           <dt>
             <kbd>Space</kbd>
           </dt>
+          <dd>Advance one candle (hold does not repeat)</dd>
+          <dt>
+            <kbd>P</kbd>
+          </dt>
           <dd>Play / pause replay</dd>
           <dt>
             <kbd>→</kbd>
@@ -97,7 +101,7 @@ export function WorkspaceHelp() {
           <dt>
             <kbd>Esc</kbd>
           </dt>
-          <dd>Close a dialog; otherwise cancel the draft and deselect</dd>
+          <dd>Close a dialog; otherwise close the menu and deselect</dd>
           <dt>
             <kbd>Ctrl Z</kbd>
           </dt>
