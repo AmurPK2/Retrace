@@ -68,6 +68,7 @@ export class Store {
       .run(key, JSON.stringify(value));
   }
   transaction<T>(fn: () => T): T {
+    if (this.db.isTransaction) return fn();
     this.db.exec("BEGIN IMMEDIATE");
     try {
       const r = fn();

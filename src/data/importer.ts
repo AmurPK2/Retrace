@@ -1,3 +1,9 @@
+import {
+  INSTRUMENTS,
+  closedHour,
+  openGapMillis,
+  type InstrumentId,
+} from "../core/instruments";
 import lzmaModule from "lzma/src/lzma_worker.js";
 const LZMA_WORKER = lzmaModule.LZMA_WORKER;
 const { decompress } = LZMA_WORKER;
@@ -16,12 +22,16 @@ export const DUKA = {
   metadata:
     "https://www.dukascopy.com/client/javadoc3/com/dukascopy/api/Instrument.html",
 };
-export function urlFor(hour: number) {
+export function urlFor(hour: number, instrument: InstrumentId = "XAUUSD") {
   const d = new Date(hour),
     p = (n: number) => String(n).padStart(2, "0");
-  return `http://datafeed.dukascopy.com/datafeed/XAUUSD/${d.getUTCFullYear()}/${p(d.getUTCMonth())}/${p(d.getUTCDate())}/${p(d.getUTCHours())}h_ticks.bi5`;
+  return `https://datafeed.dukascopy.com/datafeed/${INSTRUMENTS[instrument].symbol}/${d.getUTCFullYear()}/${p(d.getUTCMonth())}/${p(d.getUTCDate())}/${p(d.getUTCHours())}h_ticks.bi5`;
 }
-export async function decodeBi5(data: Buffer, hour: number) {
+export async function decodeBi5(
+  data: Buffer,
+  hour: number,
+  divisor = DUKA.divisor,
+) {
   if (!data.length) return { ticks: [], invalid: 0, duplicates: 0 };
   const bytes = await new Promise<Buffer>((resolve, reject) =>
     decompress(data, (r, e) =>
@@ -38,8 +48,8 @@ export async function decodeBi5(data: Buffer, hour: number) {
   const rows: (Tick & { i: number })[] = [];
   for (let o = 0; o < bytes.length; o += 20) {
     const ms = bytes.readUInt32BE(o),
-      ask = bytes.readUInt32BE(o + 4) / DUKA.divisor,
-      bid = bytes.readUInt32BE(o + 8) / DUKA.divisor,
+      ask = bytes.readUInt32BE(o + 4) / divisor,
+      bid = bytes.readUInt32BE(o + 8) / divisor,
       av = bytes.readFloatBE(o + 12),
       bv = bytes.readFloatBE(o + 16);
     if (
@@ -74,20 +84,31 @@ export async function decodeBi5(data: Buffer, hour: number) {
 }
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 export function retryAfterMs(value: string | null, now = Date.now()) {
-  if (!value) return 30000;
+  if (!value) return 120000;
   const seconds = Number(value);
-  const wait = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(value) - now;
-  return Number.isFinite(wait) ? Math.min(86400000, Math.max(1000, wait)) : 30000;
+  const wait = Number.isFinite(seconds)
+    ? seconds * 1000
+    : Date.parse(value) - now;
+  return Number.isFinite(wait)
+    ? Math.min(86400000, Math.max(1000, wait))
+    : 30000;
 }
 export class Importer {
   private nextFetchAt = 0;
   private cooldownUntil = 0;
-  private async wait(ms: number) { const end = Date.now() + ms; while (Date.now() < end) { if (this.paused) throw Error("Import paused."); await delay(Math.min(250, end - Date.now())); } }
+  private async wait(ms: number) {
+    const end = Date.now() + ms;
+    while (Date.now() < end) {
+      if (this.paused) throw Error("Import paused.");
+      await delay(Math.min(250, end - Date.now()));
+    }
+  }
   private async fetchSlot() {
     const at = Math.max(Date.now(), this.nextFetchAt, this.cooldownUntil);
-    this.nextFetchAt = at + 750;
+    this.nextFetchAt = at + 1800;
     await this.wait(Math.max(0, at - Date.now()));
-    while (Date.now() < this.cooldownUntil) await this.wait(Math.min(1000, this.cooldownUntil - Date.now()));
+    while (Date.now() < this.cooldownUntil)
+      await this.wait(Math.min(1000, this.cooldownUntil - Date.now()));
   }
   paused = false;
   cancelled = false;
@@ -104,7 +125,18 @@ export class Importer {
   constructor(
     public store: Store,
     public notify: (p: typeof Importer.prototype.progress) => void = () => {},
+    public instrument: InstrumentId = "XAUUSD",
   ) {}
+  get dataset() {
+    return INSTRUMENTS[this.instrument].dataset;
+  }
+  get metadata() {
+    return {
+      ...DUKA,
+      ...INSTRUMENTS[this.instrument],
+      precision: INSTRUMENTS[this.instrument].specs.precision,
+    };
+  }
   stop() {
     this.paused = true;
     this.progress.paused = true;
@@ -120,16 +152,22 @@ export class Importer {
       this.active.add(c);
       const timer = setTimeout(() => c.abort(), 30000);
       try {
-        const r = await fetch(urlFor(hour), {
+        const r = await fetch(urlFor(hour, this.instrument), {
           signal: c.signal,
           headers: {
             "User-Agent": "XAUUSD-Replay/0.1 (personal historical study)",
           },
         });
-        if (r.status === 429 || (r.status === 503 && r.headers.has("retry-after"))) {
+        if (r.status === 429 || r.status === 503) {
           const wait = retryAfterMs(r.headers.get("retry-after"));
           this.cooldownUntil = Math.max(this.cooldownUntil, Date.now() + wait);
-          this.notify({ ...this.progress, current: "Price source requested a wait; retrying automatically after " + Math.ceil(wait / 1000) + " seconds." });
+          this.notify({
+            ...this.progress,
+            current:
+              "Price source requested a wait; retrying automatically after " +
+              Math.ceil(wait / 1000) +
+              " seconds.",
+          });
         }
         if (r.status === 404) return null;
         if (!r.ok) throw Error(`HTTP ${r.status}`);
@@ -148,13 +186,17 @@ export class Importer {
   async latestCompleteDay(now = Date.now()) {
     let day = Math.floor(now / 86400000) * 86400000 - 86400000;
     for (let i = 0; i < 21; i++, day -= 86400000) {
-      if (knownClosure(day + 12 * 3600000)) continue;
-      const cached = this.store.chunk("dukascopy", day + 12 * 3600000);
+      if (closedHour(day + 12 * 3600000, this.instrument)) continue;
+      const cached = this.store.chunk(this.dataset, day + 12 * 3600000);
       if (cached?.status === "ready" && this.store.readTicks(cached).length)
         return day;
       const data = await this.fetch(day + 12 * 3600000);
       if (data?.length) {
-        const { ticks } = await decodeBi5(data, day + 12 * 3600000);
+        const { ticks } = await decodeBi5(
+          data,
+          day + 12 * 3600000,
+          this.metadata.divisor,
+        );
         if (ticks.length) return day;
       }
     }
@@ -202,7 +244,7 @@ export class Importer {
       current: "",
       paused: false,
     };
-    this.store.set("importRange", { from, to, ...extra });
+    this.store.set("importRange:" + this.dataset, { from, to, ...extra });
     const queue: number[] = [];
     for (let h = Math.floor(from / 3600000) * 3600000; h < to; h += 3600000)
       queue.push(h);
@@ -214,14 +256,14 @@ export class Importer {
         }
         const hour = queue.shift()!;
         this.progress.current = new Date(hour).toISOString();
-        const old = this.store.chunk("dukascopy", hour);
+        const old = this.store.chunk(this.dataset, hour);
         try {
           if (old && ["ready", "closure"].includes(old.status)) {
             if (old.status === "ready") this.store.readTicks(old);
             this.progress.bytes += old.bytes;
-          } else if (knownClosure(hour)) {
+          } else if (closedHour(hour, this.instrument)) {
             this.store.putChunk({
-              dataset: "dukascopy",
+              dataset: this.dataset,
               hour,
               status: "closure",
               path: "",
@@ -231,7 +273,9 @@ export class Importer {
               bytes: 0,
               sha: "",
               provenance: JSON.stringify({
-                schedule: "New York 17-18; Friday17-Sunday18",
+                schedule:
+                  this.instrument +
+                  " recurring calendar v1; America/New_York DST",
                 kind: "recurring market break",
               }),
             });
@@ -239,7 +283,7 @@ export class Importer {
             const data = await this.fetch(hour);
             if (!data?.length) {
               this.store.putChunk({
-                dataset: "dukascopy",
+                dataset: this.dataset,
                 hour,
                 status: "missing",
                 path: "",
@@ -249,34 +293,42 @@ export class Importer {
                 bytes: 0,
                 sha: "",
                 provenance: JSON.stringify({
-                  url: urlFor(hour),
+                  url: urlFor(hour, this.instrument),
                   http: data === null ? 404 : 200,
                   checkedAt: Date.now(),
                   note: "unverified gap, not assumed holiday",
                 }),
               });
             } else {
-              const result = await decodeBi5(data, hour);
+              const result = await decodeBi5(data, hour, this.metadata.divisor);
               if (!result.ticks.length)
                 throw Error("No valid ticks in an open hour.");
               atomicWrite(
-                path.join(this.store.marketRoot, "source", `${hour}.bi5`),
+                path.join(
+                  this.store.marketRoot,
+                  "source",
+                  this.metadata.symbol,
+                  `${hour}.bi5`,
+                ),
                 data,
               );
               const unexpectedGaps = result.ticks.flatMap((q, i) =>
-                i > 0 && q.t - result.ticks[i - 1].t > 300000
+                i > 0 &&
+                q.t - result.ticks[i - 1].t > 300000 &&
+                openGapMillis(result.ticks[i - 1].t, q.t, this.instrument) >
+                  300000
                   ? [{ from: result.ticks[i - 1].t, to: q.t }]
                   : [],
               );
               const c = this.store.writeTicks(
-                "dukascopy",
+                this.dataset,
                 hour,
                 result.ticks,
                 {
-                  url: urlFor(hour),
+                  url: urlFor(hour, this.instrument),
                   downloadedAt: Date.now(),
                   sourceSha256: sha(data),
-                  ...DUKA,
+                  ...this.metadata,
                   invalid: result.invalid,
                   duplicates: result.duplicates,
                   unexpectedGaps,
@@ -294,7 +346,7 @@ export class Importer {
           if (!this.paused) {
             this.store.set("lastImportError", this.progress.error);
             this.store.putChunk({
-              dataset: "dukascopy",
+              dataset: this.dataset,
               hour,
               status: "missing",
               path: "",
@@ -304,7 +356,7 @@ export class Importer {
               bytes: 0,
               sha: "",
               provenance: JSON.stringify({
-                url: urlFor(hour),
+                url: urlFor(hour, this.instrument),
                 error: this.progress.error,
                 checkedAt: Date.now(),
                 note: "failed download; not assumed holiday",
@@ -316,11 +368,11 @@ export class Importer {
         this.store.set("importProgress", this.progress);
       }
     };
-    await Promise.all([work(), work(), work()]);
+    await work(); // One polite request stream per app; bounded retries and shared cooldown.
     this.progress.running = false;
     this.notify({ ...this.progress });
     this.store.set("importProgress", this.progress);
     this.store.set("importLease", null);
-    return this.progress;
+    return { ...this.progress, dataset: this.dataset };
   }
 }
