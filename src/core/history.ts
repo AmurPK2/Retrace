@@ -26,7 +26,15 @@ export function chartHistory(
   const hour = s.cursor.hour;
   const chunks = store.chunks(s.dataset);
   const byHour = new Map(chunks.map((c) => [c.hour, c]));
-  const lookback = period * HISTORY_BARS[tf] * 1.6 + 8 * 86400000;
+  const visibleStart = Math.min(
+    s.layout.range?.fromTime ?? s.tick.t / 1000,
+    ...s.drawings.filter((d) => !d.hidden).flatMap((d) => [d.a.time, d.b.time]),
+  );
+  const needed = Math.max(0, s.tick.t - visibleStart * 1000) + 2 * period;
+  const lookback = Math.max(
+    period * HISTORY_BARS[tf] * 1.6 + 8 * 86400000,
+    Math.min(needed, 90 * 86400000),
+  );
   const from =
     Math.floor(
       Math.max(chunks[0]?.hour ?? hour, s.tick.t - lookback) / period,
@@ -85,5 +93,10 @@ export function chartHistory(
     result.push(pending ? { ...b, gapBefore: pending } : b);
     pending = undefined;
   }
-  return result.slice(-HISTORY_BARS[tf]);
+  return result.slice(
+    -Math.max(
+      HISTORY_BARS[tf],
+      Math.min(130000, Math.ceil(needed / period) + 100),
+    ),
+  );
 }

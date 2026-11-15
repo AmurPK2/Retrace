@@ -23,22 +23,19 @@ export function moveDraftEntry(
   bid: number,
 ): OrderDraft {
   const side = d.autoSide ? limitSide(price, bid) : d.side;
-  const sign = side === "buy" ? 1 : -1;
   return {
     ...d,
     entry: price,
     side,
     kind: d.autoSide ? "limit" : d.kind,
-    sl:
-      d.sl === undefined ? undefined : price - sign * Math.abs(d.entry - d.sl),
-    tp:
-      d.tp === undefined ? undefined : price + sign * Math.abs(d.tp - d.entry),
+    // Protection is an absolute price, never an attached offset.
+    sl: d.sl,
+    tp: d.tp,
   };
 }
 export function resolveLevelDraft(d: OrderDraft, bid: number): OrderDraft {
   const side = limitSide(d.entry, bid);
-  // Preserve deliberate SL/TP edits on the same side. Only flip attached
-  // distances when the automatically determined direction actually changes.
+  // Direction changes must keep the selected absolute protection prices.
   return side === d.side
     ? { ...d, side, kind: "limit", autoSide: true }
     : moveDraftEntry({ ...d, autoSide: true }, d.entry, bid);

@@ -311,8 +311,8 @@ export function reviewAnswerIssue(text: string, context: any) {
   const selected = context.selectedTrade;
   if (contradictsTradeExit(text, selected))
     return "The actual exit receipts do not show a stop-loss exit. Use selectedTrade.reason and exitReasons; do not invent a stop hit or a price running through the stop as the trade outcome.";
-  if (text.trim().split(/\s+/).length > 85)
-    return "Answer in at most three short sentences and about fifty words. Include one chart observation that answers the current question.";
+  if (text.trim().split(/\s+/).length > 240)
+    return "Keep the explanation within 100–180 words, with the relevant evidence and one next action. Do not include drafting notes or word counts.";
   if (contradictsSavedStop(text, selected?.sl))
     return "The selected trade's initial stop is already saved; do not claim it is missing.";
   if (selected) {
