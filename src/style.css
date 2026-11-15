@@ -2981,13 +2981,467 @@ td > span {
   font-size: 10px;
 }
 
-.retrace-brand { object-fit: contain; border-radius: 7px; }
-.discord-toggle { display: flex; align-items: center; gap: 9px; margin: 14px 0; }
-.discord-toggle input { width: 16px; height: 16px; }
-.discord-help { margin-top: 14px; line-height: 1.65; }
-.discord-help summary { cursor: pointer; }
-.discord-help ol { padding-left: 22px; }
+.retrace-brand {
+  object-fit: contain;
+  border-radius: 7px;
+}
+.discord-toggle {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 0;
+}
+.discord-toggle input {
+  width: 16px;
+  height: 16px;
+}
+.discord-help {
+  margin-top: 14px;
+  line-height: 1.65;
+}
+.discord-help summary {
+  cursor: pointer;
+}
+.discord-help ol {
+  padding-left: 22px;
+}
 
-.assistant-trade-target { display: grid; gap: 5px; margin-bottom: 9px; font-size: 10px; color: var(--muted); }
-.assistant-trade-target select { min-width: 0; width: 100%; font-size: 11px; }
-.trade-history-markers { pointer-events: visiblePainted; }
+.assistant-trade-target {
+  display: grid;
+  gap: 5px;
+  margin-bottom: 9px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.assistant-trade-target select {
+  min-width: 0;
+  width: 100%;
+  font-size: 11px;
+}
+.trade-history-markers {
+  pointer-events: visiblePainted;
+}
+
+/* RETRACE chart-first workspace. Floating tools never resize the chart. */
+.workspace {
+  position: relative;
+}
+.order-panel {
+  position: absolute;
+  right: 46px;
+  top: 64px;
+  bottom: 12px;
+  z-index: 15;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 12px 45px #0008;
+  max-height: 640px;
+  background: var(--panel-solid);
+}
+.order-panel .panel-title {
+  height: 34px;
+}
+.order-panel .order-fields {
+  padding: 10px;
+}
+.order-panel .field {
+  margin-bottom: 8px;
+}
+.order-panel .field > span {
+  margin-bottom: 4px;
+}
+.order-panel .side-switch {
+  margin: 8px;
+}
+.order-panel .risk-summary {
+  padding: 8px 0;
+}
+.order-panel .graph-ticket .field:has(input[placeholder="USD / oz"]),
+.order-panel .graph-ticket .field-row:has(input[aria-label="Ordre stop loss"]) {
+  display: block;
+}
+.order-panel .field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.chart-context-menu {
+  position: fixed;
+  z-index: 70;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 8px;
+  width: 220px;
+  box-shadow: 0 8px 32px #0009;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px;
+}
+.chart-context-menu > b,
+.chart-context-menu > button:first-of-type {
+  grid-column: 1/-1;
+}
+.chart-context-menu button {
+  padding: 8px;
+  text-align: left;
+  text-transform: capitalize;
+}
+.chart-context-menu button:hover {
+  background: #ffffff12;
+}
+.chart-context-menu:focus-within {
+  outline: 1px solid var(--gold);
+}
+.object-list {
+  position: absolute;
+  left: 56px;
+  top: 102px;
+  z-index: 16;
+  max-width: 520px;
+  max-height: 45vh;
+  overflow: auto;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  padding: 10px;
+  border-radius: 8px;
+}
+.object-list header {
+  display: flex;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+.object-list > div {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.object-list input {
+  width: 120px;
+}
+.object-list .selected {
+  outline: 1px solid var(--gold);
+}
+.chart-order-sizes {
+  position: absolute;
+  left: 12px;
+  top: 34px;
+  z-index: 6;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: 65%;
+  pointer-events: none;
+}
+.chart-order-sizes label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 7px;
+  background: var(--panel-solid);
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  font-size: 10px;
+  pointer-events: auto;
+}
+.chart-order-sizes input {
+  width: 68px;
+  min-height: 25px;
+  padding: 3px;
+  font-size: 11px;
+}
+.assistant-message p {
+  white-space: pre-wrap;
+}
+.assistant-compose > details {
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.htf-candles {
+  position: absolute;
+  right: 82px;
+  top: 54px;
+  z-index: 7;
+  background: color-mix(in srgb, var(--panel-solid) 90%, transparent);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  max-width: 48%;
+  overflow: auto;
+}
+.htf-candles header {
+  display: flex;
+  justify-content: space-between;
+  padding: 3px 7px;
+  font-size: 10px;
+}
+.htf-candles svg text {
+  fill: var(--text);
+  font-size: 9px;
+}
+.htf-settings {
+  padding: 9px;
+  max-width: 300px;
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  font-size: 10px;
+}
+.htf-settings label {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+.htf-settings input[type="number"] {
+  width: 50px;
+}
+.htf-settings input[type="color"] {
+  width: 38px;
+  height: 27px;
+}
+.htf-settings p {
+  line-height: 1.4;
+  color: var(--muted);
+}
+.coach-assess {
+  border: 1px solid var(--line);
+  padding: 8px;
+  border-radius: 5px;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.compact-ticket {
+  right: 48px;
+  top: 72px;
+  bottom: auto;
+  width: 290px;
+  padding: 12px;
+  max-height: calc(100% - 110px);
+  background: var(--panel-solid) !important;
+  gap: 9px;
+}
+.compact-ticket header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ticket-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+}
+.ticket-grid label,
+.compact-ticket details label {
+  display: grid;
+  gap: 4px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.ticket-grid input,
+.ticket-grid select {
+  height: 31px;
+  font-size: 11px;
+  min-width: 0;
+  padding: 5px;
+}
+.ticket-grid b {
+  padding: 7px;
+}
+.ticket-grid .buy {
+  color: #5dd995;
+}
+.ticket-grid .sell {
+  color: #ff9b4a;
+}
+.ticket-risk {
+  line-height: 1.9;
+  font-size: 11px;
+  margin: 3px 0;
+}
+.ticket-actions {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  gap: 5px;
+}
+.compact-ticket details {
+  font-size: 10px;
+  color: var(--muted);
+}
+.compact-ticket details textarea {
+  width: 100%;
+  margin-top: 8px;
+}
+.compact-ticket .submit-order {
+  margin: 0;
+  min-height: 35px;
+}
+.fib-row {
+  display: grid;
+  grid-template-columns: 65px 85px 45px 85px 25px;
+  gap: 7px;
+  margin: 8px 0;
+  align-items: center;
+}
+.fib-row input {
+  min-width: 0;
+  width: 100%;
+  padding: 4px;
+}
+.fib-row input[type="color"] {
+  height: 30px;
+}
+.fib-editor p {
+  max-width: 420px;
+}
+.fib-editor button {
+  margin: 8px 7px 8px 0;
+}
+
+.challenge-open {
+  position: absolute;
+  left: 70px;
+  bottom: 8px;
+  z-index: 8;
+  background: var(--panel);
+  border: 1px solid var(--accent);
+  font-size: 12px;
+}
+.challenge-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.challenge-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.challenge-panel textarea {
+  min-height: 76px;
+}
+.challenge-check {
+  border-left: 2px solid var(--accent);
+  padding: 8px 12px;
+  margin: 10px 0;
+  background: var(--bg);
+}
+.challenge-panel p {
+  line-height: 1.5;
+}
+.challenge-panel details {
+  margin: 12px 0;
+}
+.challenge-panel blockquote {
+  margin: 12px 0;
+  border-left: 2px solid var(--muted);
+  padding: 10px;
+}
+
+.setup-total {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--muted);
+  margin: 8px 0;
+}
+.compact-ticket .submit-order {
+  background: var(--accent);
+  color: #111;
+  min-height: 34px;
+  font-weight: 700;
+}
+.topbar .session-button {
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Compact controls remain readable beside a collapsed or open assistant. */
+.topbar .session-switch {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 1;
+  display: block;
+  max-width: 240px;
+}
+.session-switch svg,
+.session-switch .status-dot {
+  display: none;
+}
+.paper-badge {
+  flex-shrink: 0;
+}
+.instrument-picker {
+  width: 98px !important;
+  min-width: 98px;
+  height: 34px;
+  font-size: 12px;
+  padding: 5px;
+}
+.account-strip .instrument {
+  min-width: 270px !important;
+}
+.chart-controls {
+  height: auto !important;
+  min-height: 39px;
+  gap: 8px;
+  padding-top: 4px;
+  padding-bottom: 4px;
+  flex-wrap: wrap;
+}
+.chart-control-actions {
+  gap: 5px !important;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.chart-control-actions button {
+  white-space: nowrap;
+  min-height: 28px;
+  font-size: 11px;
+}
+.chart-control-actions select {
+  width: 110px;
+}
+.htf-candles {
+  background: var(--panel-solid);
+  box-shadow: 0 4px 18px #0005;
+}
+.htf-candles svg text {
+  font-size: 10px;
+}
+.chart-order-sizes {
+  max-width: calc(100% - 95px);
+  flex-wrap: wrap;
+}
+.fib-row {
+  grid-template-columns: 65px minmax(70px, 1fr) 42px 80px 25px;
+}
+.rr-guide-dialog nav {
+  flex-wrap: wrap;
+}
+.rr-guide-dialog nav button {
+  flex: 1 0 28%;
+}
+@media (max-width: 1250px) {
+  .account-strip {
+    gap: 15px !important;
+  }
+  .account-strip .instrument {
+    min-width: 245px !important;
+  }
+  .topbar .paper-badge {
+    display: none;
+  }
+  .chart-control-actions {
+    justify-content: flex-start;
+  }
+  .frames button {
+    min-width: 30px;
+  }
+  .chart-controls {
+    justify-content: flex-start;
+  }
+}

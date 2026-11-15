@@ -1,3 +1,10 @@
+import { ChallengePanel } from "./components/ChallengePanel";
+import { CHALLENGES } from "./core/challenges";
+import { FibEditor } from "./components/FibEditor";
+import { INSTRUMENTS, instrumentForDataset } from "./core/instruments";
+import { HTFCandles } from "./components/HTFCandles";
+import { DEFAULT_HTF } from "./core/htf";
+import { draftIssues, combinedPlanRisk } from "./core/order-validation";
 import {
   useEffect,
   useRef,
@@ -96,13 +103,14 @@ import {
   type Indicator,
   type TF,
 } from "./types";
-const money = (n: number) =>
+const formatMoney = (n: number, currency = "USD") =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
+const money = (n: number) => formatMoney(n);
 const num = (n: number) => n.toFixed(3);
 const legacyDefaultText: Record<string, string> = {
   "Egen prishandling": "My price action",
@@ -222,6 +230,16 @@ export default function App() {
   const [studyPicking, setStudyPicking] = useState(false);
   const studyDraft = useRef<{ rangeId: string; value: RRPlan } | null>(null);
   const [previewActive, setPreviewActive] = useState(false);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [setupId, setSetupId] = useState(() => crypto.randomUUID());
+  const [planId, setPlanId] = useState<string | undefined>();
+  const [objectsOpen, setObjectsOpen] = useState(false);
+  const [chartMenu, setChartMenu] = useState<{
+    x: number;
+    y: number;
+    price: number;
+    time: number;
+  } | null>(null);
   const [sendingAI, setSendingAI] = useState(false);
   const [reviewTradeId, setReviewTradeId] = useState("auto");
   const [feedCount, setFeedCount] = useState(0);
@@ -337,7 +355,7 @@ export default function App() {
           setModal("");
           return;
         }
-        setPreviewActive(false);
+        setChartMenu(null);
         setStudyPicking(false);
         setTool("select");
         setSelected(null);
@@ -347,11 +365,11 @@ export default function App() {
       }
       if (
         (e.target as HTMLElement).closest(
-          'input,textarea,select,[contenteditable="true"]',
+          'input,textarea,select,[contenteditable="true"],video,[role="dialog"],[role="menu"]',
         )
       )
         return;
-      if (modal) return;
+      if (modal || chartMenu) return;
       if (e.key === "?") {
         e.preventDefault();
         setModal("help");
@@ -362,9 +380,13 @@ export default function App() {
         if ((e.target as HTMLElement).closest('button,[role="button"],summary'))
           return;
         e.preventDefault();
-        if (!e.repeat) act({ type: "play", value: !stateRef.current?.playing });
+        if (!e.repeat) act({ type: "step", kind: "candle" });
       }
-      if (e.key === "ArrowRight") {
+      if (e.code === "KeyP" && !e.ctrlKey && !e.altKey && !e.repeat) {
+        e.preventDefault();
+        act({ type: "play", value: !stateRef.current?.playing });
+      }
+      if (e.key === "ArrowRight" && !e.repeat) {
         e.preventDefault();
         act({ type: "step", kind: "candle" });
       }
@@ -387,8 +409,11 @@ export default function App() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [act, selected, modal]);
+  }, [act, selected, modal, chartMenu]);
   const session = state?.session;
+  const money = (n: number) =>
+    formatMoney(n, session?.broker.specs.currency ?? "USD");
+  const num = (n: number) => n.toFixed(session?.broker.specs.precision ?? 3);
   const previousStudyRange = useRef<{ session: string; range?: string } | null>(
     null,
   );
@@ -413,21 +438,39 @@ export default function App() {
     const next = { ...session.layout, ...patch };
     // Logical bar indexes belong to one timeframe. Reusing them after a
     // timeframe change can put nearly the entire chart in future whitespace.
-    if (patch.timeframe && patch.timeframe !== session.layout.timeframe)
-      delete next.range;
-    if (patch.second && patch.second !== session.layout.second)
+    if (patch.timeframe && patch.timeframe !== session.layout.timeframe) {
+      const visible = chart.current?.visibleWindow();
+      if (visible)
+        next.range = {
+          from: 0,
+          to: 1,
+          version: 3,
+          fromTime: visible.from,
+          toTime: visible.to,
+        };
+    }
+    if (
+      patch.second &&
+      patch.second !== session.layout.second &&
+      next.secondRange?.version !== 3
+    )
       delete next.secondRange;
     act({ type: "ui", value: { layout: next } });
   };
   const [tradeToLocate, setTradeToLocate] = useState<string | null>(null);
   useEffect(() => {
-    if (tradeToLocate && chart.current?.focusTrade(tradeToLocate)) setTradeToLocate(null);
+    if (tradeToLocate && chart.current?.focusTrade(tradeToLocate))
+      setTradeToLocate(null);
   }, [tradeToLocate, state?.bars, session?.layout.timeframe]);
   const locateTrade = (id: string) => {
     if (chart.current?.focusTrade(id)) return;
     if (session && session.layout.timeframe !== "1H") {
-      setTradeToLocate(id); layout({ timeframe: "1H" });
-    } else setError("This trade is outside loaded history. Its original Decision chart is still available in History.");
+      setTradeToLocate(id);
+      layout({ timeframe: "1H" });
+    } else
+      setError(
+        "This trade is outside loaded history. Its original Decision chart is still available in History.",
+      );
   };
   const [marketSide, setMarketSide] = useState<"buy" | "sell">("buy"),
     [kind, setKind] = useState<"market" | "limit">("limit"),
@@ -470,8 +513,39 @@ export default function App() {
       ? Math.abs(entryPrice - Number(sl)) *
           effectiveLots *
           session.broker.specs.contract +
-        effectiveLots * session.broker.specs.commission * 2
+        effectiveLots *
+          (session.broker.specs.commission +
+            session.broker.specs.slippage * session.broker.specs.contract) *
+          2
       : null;
+  const setupEntries = session
+    ? [...session.broker.pending, ...session.broker.positions]
+        .filter((p) => p.setupId === setupId)
+        .map((p) => ({
+          id: p.id,
+          entry: "entry" in p ? Number(p.entry) : p.price!,
+          sl: p.sl,
+          lots: p.lots,
+        }))
+    : [];
+  const setupRisk = session
+    ? combinedPlanRisk(
+        [
+          ...setupEntries,
+          ...(previewActive
+            ? [
+                {
+                  id: "draft",
+                  entry: entryPrice,
+                  sl: sl ? Number(sl) : undefined,
+                  lots: effectiveLots,
+                },
+              ]
+            : []),
+        ],
+        session.broker.specs,
+      )
+    : null;
   const reward =
     session && tp
       ? Math.abs(Number(tp) - entryPrice) *
@@ -485,6 +559,19 @@ export default function App() {
         session.broker.specs,
       )
     : 0;
+  const issues = session
+    ? draftIssues(
+        {
+          side,
+          kind,
+          entry: entryPrice,
+          sl: sl ? Number(sl) : undefined,
+          tp: tp ? Number(tp) : undefined,
+          lots: effectiveLots,
+        },
+        session.broker.specs,
+      )
+    : [];
   const order = async () => {
     if (!session) return;
     setBusy(true);
@@ -521,6 +608,8 @@ export default function App() {
           side: execution.side,
           kind: execution.kind,
           automaticLevel: kind !== "market",
+          setupId,
+          planId,
           lots: effectiveLots,
           price: kind === "market" ? undefined : Number(entry),
           sl: execution.sl,
@@ -550,8 +639,8 @@ export default function App() {
       await call({ type: "flush", value: { draft, thesis, tags } });
       const snapshot = (await call({ type: "state" })) as AppState;
       await new Promise<void>((r) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => r())),
-        );
+        requestAnimationFrame(() => requestAnimationFrame(() => r())),
+      );
       await call({
         type: "ai.ask",
         text: `${chatMode}: ${draft}`,
@@ -559,17 +648,21 @@ export default function App() {
         screenshot: await chart.current?.capture(),
         tradeId: reviewTradeId,
         visibleWindow: chart.current?.visibleWindow(),
-        proposal: previewActive ? {
-          side,
-          kind,
-          entry: entryPrice,
-          sl: sl ? Number(sl) : null,
-          tp: tp ? Number(tp) : null,
-          lots: effectiveLots,
-          cashRisk: plannedRisk,
-          rr: plannedRisk && reward ? reward / plannedRisk : null,
-          margin: requiredMargin,
-        } : undefined,
+        proposal: previewActive
+          ? {
+              side,
+              kind,
+              planId,
+              setupId,
+              entry: entryPrice,
+              sl: sl ? Number(sl) : null,
+              tp: tp ? Number(tp) : null,
+              lots: effectiveLots,
+              cashRisk: plannedRisk,
+              rr: plannedRisk && reward ? reward / plannedRisk : null,
+              margin: requiredMargin,
+            }
+          : undefined,
       });
       setDraft("");
     } catch {
@@ -578,32 +671,31 @@ export default function App() {
     }
   };
   const selectedDrawing = session?.drawings.find((d) => d.id === selected);
-  const newOrderDraft = async () => {
+  const newOrderDraft = async (price?: number) => {
     if (!session) return;
     try {
       await call({ type: "play", value: false });
       const fresh = await call({ type: "state" });
       setKind("limit");
-      setEntry(num(fresh.quote.bid));
+      setSetupId(crypto.randomUUID());
+      setPlanId(undefined);
+      setLots(String(Math.max(Number(lots) || 0, session.broker.specs.minLot)));
+      setEntry(num(price ?? fresh.quote.bid));
+      setTicketOpen(true);
+      setChartMenu(null);
       setSL("");
       setTP("");
       setPreviewActive(true);
       setSelected(null);
       setTool("select");
       setPicker(null);
-      chart.current?.current();
       if (!look.graphOrders)
         act({ type: "appearance", value: { ...look, graphOrders: true } });
     } catch {}
   };
   const changeDrawing = (patch: Partial<Drawing>) => {
     if (session && selectedDrawing)
-      act({
-        type: "drawings",
-        value: session.drawings.map((d) =>
-          d.id === selected ? { ...d, ...patch } : d,
-        ),
-      });
+      act({ type: "drawing.patch", id: selectedDrawing.id, patch });
   };
   const cancelDraft = () => {
     setPreviewActive(false);
@@ -616,6 +708,7 @@ export default function App() {
   const usePlan = () => {
     if (!selectedDrawing || !session) return;
     const d = selectedDrawing;
+    setPlanId(d.id);
     const level = resolveLevelDraft(
       {
         side: d.kind === "short" ? "sell" : "buy",
@@ -636,6 +729,7 @@ export default function App() {
     setTool("select");
     setSelected(null);
     setPreviewActive(true);
+    setTicketOpen(true);
   };
   const changeEntry = (price: number, text = num(price)) => {
     if (!session) return;
@@ -662,7 +756,11 @@ export default function App() {
   if (!state)
     return (
       <div className="boot">
-        <img className="brand-mark retrace-brand" src={retraceIcon} alt="RETRACE RT" />
+        <img
+          className="brand-mark retrace-brand"
+          src={retraceIcon}
+          alt="RETRACE RT"
+        />
         <h2>Opening your workspace</h2>
         <p>{error || "Reading your last saved checkpoint …"}</p>
       </div>
@@ -671,8 +769,16 @@ export default function App() {
   const toolbar: [Tool, string, ReactNode][] = [
     ["select", "Select and move · Esc", <ToolIcon kind="select" />],
     ["horizontal", "Horizontal line", <ToolIcon kind="horizontal" />],
-    ["ray", "Ray · choose two points · Shift locks an axis", <ToolIcon kind="ray" />],
-    ["trend", "Trend line · hold Shift to lock an axis", <ToolIcon kind="trend" />],
+    [
+      "ray",
+      "Ray · choose two points · Shift locks an axis",
+      <ToolIcon kind="ray" />,
+    ],
+    [
+      "trend",
+      "Trend line · hold Shift to lock an axis",
+      <ToolIcon kind="trend" />,
+    ],
     ["zone", "Rectangle · click and drag", <ToolIcon kind="zone" />],
     ["fib", "Fibonacci · click and drag", <ToolIcon kind="fib" />],
     ["long", "Long position · buy plan", <ToolIcon kind="long" />],
@@ -686,11 +792,13 @@ export default function App() {
     >
       <header className="topbar">
         <div className="brand">
-          <img className="brand-mark retrace-brand" src={retraceIcon} alt="RETRACE RT" />
+          <img
+            className="brand-mark retrace-brand"
+            src={retraceIcon}
+            alt="RETRACE RT"
+          />
           <div>
-            <b>
-              RETRACE
-            </b>
+            <b>RETRACE</b>
             <small>YOUR TRADING DESK</small>
           </div>
         </div>
@@ -700,7 +808,10 @@ export default function App() {
           {session?.name ?? "Select a session"}
           <ChevronDown size={14} />
         </button>
-        <span className="paper-badge">PAPER · $500 / 1:500</span>
+        <span className="paper-badge">
+          REPLAY · {session?.broker.specs.currency ?? "USD"} · 1:
+          {session?.broker.specs.leverage ?? 500}
+        </span>
         <div className="top-actions">
           <button className="quiet" onClick={() => setModal("data")}>
             <Database size={15} />
@@ -730,10 +841,42 @@ export default function App() {
       </header>
       <div className="account-strip">
         <div className="instrument">
-          <span className="gold-icon">Au</span>
+          <select
+            className="instrument-picker"
+            aria-label="Instrument"
+            value={session ? instrumentForDataset(session.dataset) : ""}
+            onChange={(e) => {
+              cancelDraft();
+              setSelected(null);
+              setTicketOpen(false);
+              act({ type: "instrument", value: e.target.value });
+            }}
+          >
+            <option disabled value="">
+              Select instrument
+            </option>
+            {Object.entries(INSTRUMENTS).map(([id, i]) => (
+              <option key={id} value={id} disabled={!i.available}>
+                {id}
+                {!i.available ? " · licensed data required" : ""}
+              </option>
+            ))}
+          </select>
           <div>
-            <b>Gold / US Dollar</b>
-            <small>XAUUSD · USD per troy ounce</small>
+            <b>
+              {session
+                ? INSTRUMENTS[instrumentForDataset(session.dataset)].name
+                : "Gold / US Dollar"}
+            </b>
+            <small>
+              {session
+                ? instrumentForDataset(session.dataset) +
+                  " · " +
+                  (session.broker.specs.currency ?? "USD") +
+                  " account · " +
+                  INSTRUMENTS[instrumentForDataset(session.dataset)].unit
+                : "XAUUSD"}
+            </small>
           </div>
         </div>
         <div className="quote">
@@ -920,12 +1063,185 @@ export default function App() {
               >
                 All history
               </button>
-              {session && sessionTrades(session).length > 0 && <button className="toolbar-button" title="Show the latest trade's entry and exit arrows. Older trades: History → Show on chart." onClick={() => locateTrade(sessionTrades(session)[0].id)}>Trades {sessionTrades(session).length}</button>}
+
+              <button
+                className="toolbar-button"
+                onClick={() =>
+                  layout({
+                    htf: {
+                      ...DEFAULT_HTF,
+                      ...session?.layout.htf,
+                      enabled: !(session?.layout.htf?.enabled ?? true),
+                    },
+                  })
+                }
+              >
+                HTF candles
+              </button>
+              <button
+                className="toolbar-button"
+                onClick={() => {
+                  layout({ timeframe: "4H" });
+                  setStudyPicking(true);
+                }}
+              >
+                Marker C1/C2
+              </button>
+              <button
+                className="toolbar-button"
+                onClick={() => setTicketOpen(!ticketOpen)}
+                aria-pressed={ticketOpen}
+              >
+                Order
+              </button>
+              <button
+                className="toolbar-button"
+                onClick={() => setObjectsOpen(!objectsOpen)}
+                aria-pressed={objectsOpen}
+              >
+                Objects {session?.drawings.length ?? 0}
+              </button>
+              {session && sessionTrades(session).length > 0 && (
+                <button
+                  className="toolbar-button"
+                  title="Show the latest trade's entry and exit arrows. Older trades: History → Show on chart."
+                  onClick={() => locateTrade(sessionTrades(session)[0].id)}
+                >
+                  Trades {sessionTrades(session).length}
+                </button>
+              )}
             </div>
           </div>
+          {objectsOpen && session && (
+            <div className="object-list" aria-label="Drawing objects">
+              <header>
+                Objects <button onClick={() => setObjectsOpen(false)}>×</button>
+              </header>
+              {session.drawings.map((d) => (
+                <div key={d.id} className={selected === d.id ? "selected" : ""}>
+                  <button
+                    onClick={() => setSelected(d.id)}
+                    title="Select drawing"
+                  >
+                    {d.kind}
+                  </button>
+                  <input
+                    aria-label={"Name " + d.id}
+                    defaultValue={d.label}
+                    placeholder="Name"
+                    onBlur={(e) =>
+                      act({
+                        type: "drawing.patch",
+                        id: d.id,
+                        patch: { label: e.target.value },
+                      })
+                    }
+                  />
+                  <button
+                    aria-label={"Visibility " + d.id}
+                    aria-pressed={!d.hidden}
+                    onClick={() =>
+                      act({
+                        type: "drawing.patch",
+                        id: d.id,
+                        patch: { hidden: !d.hidden },
+                      })
+                    }
+                  >
+                    {d.hidden ? "Show" : "Hide"}
+                  </button>
+                  <button
+                    aria-label={"Lock " + d.id}
+                    aria-pressed={d.locked}
+                    onClick={() =>
+                      act({
+                        type: "drawing.patch",
+                        id: d.id,
+                        patch: { locked: !d.locked },
+                      })
+                    }
+                  >
+                    {d.locked ? "Unlock" : "Lock"}
+                  </button>
+                  <button
+                    aria-label={"Delete " + d.id}
+                    onClick={() => act({ type: "drawing.remove", id: d.id })}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {!session.drawings.length && (
+                <p>Draw on the chart to add an object.</p>
+              )}
+            </div>
+          )}
+          {chartMenu && (
+            <div
+              className="chart-context-menu"
+              role="menu"
+              style={{
+                left: Math.min(chartMenu.x, window.innerWidth - 240),
+                top: Math.min(chartMenu.y, window.innerHeight - 310),
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setChartMenu(null);
+              }}
+            >
+              <b>{num(chartMenu.price)}</b>
+              <button
+                role="menuitem"
+                autoFocus
+                onClick={() => void newOrderDraft(chartMenu.price)}
+              >
+                New order draft here
+              </button>
+              {(
+                [
+                  "horizontal",
+                  "trend",
+                  "ray",
+                  "zone",
+                  "fib",
+                  "long",
+                  "short",
+                ] as Tool[]
+              ).map((t) => (
+                <button
+                  role="menuitem"
+                  key={t}
+                  onClick={() => {
+                    setTool(t);
+                    setChartMenu(null);
+                  }}
+                >
+                  {t === "fib" ? "Fibonacci" : t}
+                </button>
+              ))}
+              <button
+                role="menuitem"
+                onClick={() => {
+                  chart.current?.fit();
+                  setChartMenu(null);
+                }}
+              >
+                Fit chart
+              </button>
+              <button role="menuitem" onClick={() => setChartMenu(null)}>
+                Close menu
+              </button>
+            </div>
+          )}
           <div className={"chart-area " + (session?.layout.dual ? "dual" : "")}>
             {session ? (
               <>
+                <HTFCandles
+                  precision={session.broker.specs.precision}
+                  bars={state.htfBars ?? []}
+                  cutoff={session.tick.t}
+                  value={session.layout.htf}
+                  save={(htf) => layout({ htf })}
+                />
                 <Chart
                   ref={chart}
                   bars={state.bars}
@@ -942,25 +1258,37 @@ export default function App() {
                       .then(() => setStudyPicking(false))
                       .catch(() => {});
                   }}
+                  onContext={setChartMenu}
+                  onDraftLots={(value) => {
+                    setRiskMode("lots");
+                    setLots(String(value));
+                  }}
                   planLots={effectiveLots || 0.01}
                   onCancelDraft={cancelDraft}
                   onCancelPending={(id) => act({ type: "pending.cancel", id })}
                   onPendingEdit={(id, changes) => {
-                    const pending = session.broker.pending.find(
-                      (p) => p.id === id,
-                    );
-                    if (pending)
-                      act({
-                        type: "pending.edit",
+                    void (async () => {
+                      await call({ type: "pending.edit", id, changes });
+                      const updated = (await call({
+                        type: "state",
+                      })) as AppState;
+                      const pending = updated.session?.broker.pending.find(
+                        (p) => p.id === id,
+                      );
+                      if (!pending) return;
+                      await new Promise<void>((r) =>
+                        requestAnimationFrame(() =>
+                          requestAnimationFrame(() => r()),
+                        ),
+                      );
+                      await call({
+                        type: "pending.snapshot",
                         id,
-                        changes: {
-                          price: pending.price,
-                          lots: pending.lots,
-                          sl: pending.sl,
-                          tp: pending.tp,
-                          ...changes,
-                        },
+                        revision: pending.revisions?.length,
+                        cursor: chart.current?.cursor(),
+                        screenshot: await chart.current?.capture(),
                       });
+                    })().catch(() => {});
                   }}
                   orderDraft={
                     previewActive &&
@@ -1051,13 +1379,48 @@ export default function App() {
                     setModal(state.coverage.hours ? "sessions" : "data")
                   }
                 >
-                  {state.coverage.importer.running ? "Preparing real chart data…" : state.coverage.hours ? "Select practice session" : "Download history"}
+                  {state.coverage.importer.running
+                    ? "Preparing real chart data…"
+                    : state.coverage.hours
+                      ? "Select practice session"
+                      : "Download history"}
                   <ChevronRight size={16} />
                 </button>
-                <p className="micro">{state.coverage.importer.running ? "First setup downloads a small real-tick starter period automatically. AI prepares separately in the sidebar." : state.coverage.importer.error ? "Data setup was interrupted. Open Data hours to retry or import your own prices." : "No broker connection · Simulated orders only"}</p>
+                <p className="micro">
+                  {state.coverage.importer.running
+                    ? "First setup downloads a small real-tick starter period automatically. AI prepares separately in the sidebar."
+                    : state.coverage.importer.error
+                      ? "Data setup was interrupted. Open Data hours to retry or import your own prices."
+                      : "No broker connection · Simulated orders only"}
+                </p>
               </div>
             )}
           </div>
+          {session?.learning && (
+            <button
+              className="challenge-open"
+              onClick={() => setModal("challenge")}
+            >
+              Utfordring ·{" "}
+              {CHALLENGES.findIndex(
+                (c) => c[0] === session.learning!.active.stage,
+              ) + 1}
+              /10
+              {!session.learning.active.answer ? " · svar før avsløring" : ""}
+            </button>
+          )}
+          {modal === "challenge" && session?.learning && (
+            <Modal
+              title="Lær steg for steg / Practice challenge"
+              onClose={() => setModal("")}
+            >
+              <ChallengePanel
+                key={session.learning.active.id}
+                learning={session.learning}
+                call={window.replay.call}
+              />
+            </Modal>
+          )}
           {selectedDrawing && (
             <div className="selection-bar">
               <span>{selectedDrawing.kind} · selected</span>
@@ -1164,7 +1527,11 @@ export default function App() {
                           min="0.001"
                           step={key === "rr" ? 0.1 : 0.001}
                           defaultValue={Number(
-                            value.toFixed(key === "rr" ? 2 : 3),
+                            value.toFixed(
+                              key === "rr"
+                                ? 2
+                                : session!.broker.specs.precision,
+                            ),
                           )}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") e.currentTarget.blur();
@@ -1213,7 +1580,7 @@ export default function App() {
               )}
             </button>
             <IconButton
-              title="Next candle (right arrow)"
+              title="Next candle (Space / right arrow)"
               onClick={() => act({ type: "step", kind: "candle" })}
               disabled={!session}
             >
@@ -1357,7 +1724,9 @@ export default function App() {
                 reviewTrade={(id) => {
                   setReviewTradeId(id);
                   setChatMode("Review trade");
-                  setDraft("Was this trade a valid setup? Answer directly using the chart at my decision.");
+                  setDraft(
+                    "Was this trade a valid setup? Answer directly using the chart at my decision.",
+                  );
                   setSidebar("assistant");
                   layout({ ai: true });
                 }}
@@ -1365,343 +1734,182 @@ export default function App() {
             )}
           </section>
         </section>
-        <aside
-          className="order-panel"
-          style={{ width: session?.layout.right ?? 290 }}
-        >
-          <div className="panel-title">
-            <span>NEW ORDER</span>
-            <span className="muted">Paper Trading</span>
-          </div>
-          <div className="side-switch">
-            <button
-              className={side === "buy" ? "buy active" : "buy"}
-              disabled={kind !== "market"}
-              title={
-                kind === "market"
-                  ? "Buy at the current ask price"
-                  : "Direction follows the entry level automatically"
-              }
-              onClick={() => {
-                setMarketSide("buy");
-                setPreviewActive(true);
-              }}
-            >
-              <span>
-                BUY <small>ASK</small>
-              </span>
-              <b>{num(session?.tick.ask ?? 0)}</b>
-            </button>
-            <button
-              className={side === "sell" ? "sell active" : "sell"}
-              disabled={kind !== "market"}
-              title={
-                kind === "market"
-                  ? "Sell at the current bid price"
-                  : "Direction follows the entry level automatically"
-              }
-              onClick={() => {
-                setMarketSide("sell");
-                setPreviewActive(true);
-              }}
-            >
-              <span>
-                SELL <small>BID</small>
-              </span>
-              <b>{num(session?.tick.bid ?? 0)}</b>
-            </button>
-          </div>
-          <div
-            className={`order-fields ${look.graphOrders ? "graph-ticket" : ""}`}
+        {ticketOpen && session && (
+          <aside
+            className="order-panel compact-ticket"
+            onPointerDown={(e) => e.stopPropagation()}
           >
-            {kind !== "market" && previewActive && (
-              <div className="auto-limit-note">
-                {levelLabel(side)}
-                <small>Drag entry · above price = sell, below = buy</small>
-              </div>
-            )}
-            <div className="placement-mode">
+            <header>
+              <b>{previewActive ? "Order draft" : "New order"}</b>
               <button
-                className={!look.graphOrders ? "selected" : ""}
-                onClick={() => {
-                  setPicker(null);
-                  act({
-                    type: "appearance",
-                    value: { ...look, graphOrders: false },
-                  });
-                }}
+                aria-label="Hide order ticket"
+                onClick={() => setTicketOpen(false)}
               >
-                Numbers
+                ×
               </button>
-              <button
-                className={look.graphOrders ? "selected" : ""}
-                onClick={() =>
-                  act({
-                    type: "appearance",
-                    value: { ...look, graphOrders: true },
-                  })
-                }
-              >
-                On chart
-              </button>
-            </div>
-            {look.graphOrders && (
-              <div className="level-pickers">
-                {(["entry", "sl", "tp"] as const).map((role) => (
-                  <button
-                    key={role}
-                    disabled={
-                      (role === "entry" && kind === "market") ||
-                      (kind !== "market" && !previewActive)
-                    }
-                    className={
-                      (
-                        role === "entry"
-                          ? picker === role
-                          : !!(role === "sl" ? sl : tp)
-                      )
-                        ? "selected"
-                        : ""
-                    }
-                    title={
-                      role === "entry"
-                        ? "Select an entry price on the chart"
-                        : `${role === "sl" ? (sl ? "Remove" : "Add") : tp ? "Remove" : "Add"} ${role.toUpperCase()} · drag the line to your price`
-                    }
-                    aria-pressed={
-                      role === "entry"
-                        ? picker === role
-                        : !!(role === "sl" ? sl : tp)
-                    }
-                    onClick={() => {
-                      setPreviewActive(true);
-                      if (role === "entry") {
-                        setPicker(picker === role ? null : role);
-                        return;
-                      }
-                      const existing = role === "sl" ? sl : tp;
-                      const value = existing
-                        ? ""
-                        : num(
-                            chart.current?.proposedLevel(
-                              entryPrice,
-                              side,
-                              role,
-                            ) ?? entryPrice,
-                          );
-                      if (role === "sl") setSL(value);
-                      else setTP(value);
-                      setPicker(null);
-                    }}
-                  >
-                    <Crosshair size={12} />
-                    {role === "entry" ? "Entry" : role.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            )}
-            {picker && (
-              <p className="picker-hint">
-                Click a price for {picker.toUpperCase()}{" "}
-                <button onClick={() => setPicker(null)}>×</button>
-              </p>
-            )}
-            <Field label="Order type">
-              <select
-                value={kind === "market" ? "market" : "level"}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setPicker(null);
-                  if (value === "market") {
-                    setKind("market");
-                    setPreviewActive(false);
-                    setSL("");
-                    setTP("");
-                  } else void newOrderDraft();
-                }}
-              >
-                <option value="level">Level · automatic Buy / Sell</option>
-                <option value="market">Market execution</option>
-              </select>
-            </Field>
-            {kind !== "market" && (
-              <Field label="Entry price">
-                <input
-                  type="number"
-                  step=".001"
-                  value={entry}
-                  onFocus={() => setPreviewActive(true)}
+            </header>
+            <div className="ticket-grid">
+              <label>
+                Order type
+                <select
+                  aria-label="Order type"
+                  value={kind}
                   onChange={(e) => {
-                    const value = Number(e.target.value);
-                    if (e.target.value && Number.isFinite(value) && value > 0)
-                      changeEntry(value, e.target.value);
-                    else setEntry(e.target.value);
+                    setKind(e.target.value as any);
+                    setPreviewActive(true);
                   }}
-                  placeholder="USD / oz"
+                >
+                  <option value="limit">Level · auto BUY/SELL</option>
+                  <option value="market">Market</option>
+                </select>
+              </label>
+              <label>
+                Direction
+                {kind === "market" ? (
+                  <select
+                    aria-label="Direction"
+                    value={marketSide}
+                    onChange={(e) => setMarketSide(e.target.value as any)}
+                  >
+                    <option value="buy">BUY</option>
+                    <option value="sell">SELL</option>
+                  </select>
+                ) : (
+                  <b className={side}>{side.toUpperCase()}</b>
+                )}
+              </label>
+              <label>
+                ENTRY
+                <input
+                  aria-label="Entry price"
+                  type="number"
+                  step={session.broker.specs.tickSize ?? 0.001}
+                  value={kind === "market" ? entryPrice : entry}
+                  disabled={kind === "market"}
+                  onChange={(e) => {
+                    setEntry(e.target.value);
+                    setPreviewActive(true);
+                  }}
                 />
-              </Field>
-            )}
-            <div className="field-row">
-              <Field label="Size by">
+              </label>
+              <label>
+                {session.broker.specs.unit ?? "Lots"}
+                <input
+                  aria-label="Order size"
+                  type="number"
+                  min={session.broker.specs.minLot}
+                  step={session.broker.specs.lotStep}
+                  value={lots}
+                  onChange={(e) => {
+                    setLots(e.target.value);
+                    setRiskMode("lots");
+                  }}
+                />
+              </label>
+              <label>
+                SL
+                <input
+                  aria-label="Order stop loss"
+                  type="number"
+                  step={session.broker.specs.tickSize ?? 0.001}
+                  value={sl}
+                  placeholder="Optional"
+                  onChange={(e) => {
+                    setSL(e.target.value);
+                    setPreviewActive(true);
+                  }}
+                />
+              </label>
+              <label>
+                TP
+                <input
+                  aria-label="Order take profit"
+                  type="number"
+                  step={session.broker.specs.tickSize ?? 0.001}
+                  value={tp}
+                  placeholder="Optional"
+                  onChange={(e) => {
+                    setTP(e.target.value);
+                    setPreviewActive(true);
+                  }}
+                />
+              </label>
+            </div>
+            <p className="ticket-risk">
+              Risk <b>{plannedRisk === null ? "No SL" : money(plannedRisk)}</b>{" "}
+              · Reward <b>{reward === null ? "—" : money(reward)}</b>
+              <br />
+              R:R{" "}
+              <b>
+                {plannedRisk && reward
+                  ? (reward / plannedRisk).toFixed(2)
+                  : "—"}
+              </b>{" "}
+              · Margin <b>{money(requiredMargin)}</b>
+            </p>
+            {previewActive &&
+              issues.map((issue) => (
+                <p className="inline-error" key={issue}>
+                  {issue}
+                </p>
+              ))}
+            <button
+              className="submit-order"
+              disabled={busy || issues.length > 0}
+              onClick={() => void order()}
+            >
+              {busy ? "Saving…" : "Place order"}
+            </button>
+            <div className="ticket-actions">
+              <button
+                onClick={() => {
+                  setPreviewActive(true);
+                  setEntry(num(entryPrice || session.tick.bid));
+                }}
+              >
+                Add entry · same setup
+              </button>
+              <button onClick={cancelDraft}>Cancel draft</button>
+            </div>
+            <p className="setup-total">
+              Setup: {setupEntries.length + (previewActive ? 1 : 0)} entries ·
+              combined risk{" "}
+              {setupRisk === null ? "SL missing" : money(setupRisk)}. Add entry
+              keeps the setup and SL; choose the next entry and TP.
+            </p>
+            <details>
+              <summary>Notes & risk sizing</summary>
+              <label>
+                Size by
                 <select
                   value={riskMode}
                   onChange={(e) => setRiskMode(e.target.value)}
                 >
-                  <option value="lots">Lot</option>
+                  <option value="lots">Quantity</option>
                   <option value="percent">Risk %</option>
-                  <option value="cash">Risk USD</option>
+                  <option value="cash">Cash risk</option>
                 </select>
-              </Field>
-              <Field
-                label={riskMode === "lots" ? "Volume (lots)" : "Risk budget"}
-              >
+              </label>
+              {riskMode !== "lots" && (
                 <input
+                  aria-label="Risk budget"
                   type="number"
-                  min="0"
-                  step="0.01"
-                  value={riskMode === "lots" ? lots : riskValue}
-                  onChange={(e) =>
-                    riskMode === "lots"
-                      ? setLots(e.target.value)
-                      : setRiskValue(e.target.value)
-                  }
+                  value={riskValue}
+                  onChange={(e) => setRiskValue(e.target.value)}
                 />
-              </Field>
-            </div>
-            <div className="field-row">
-              <Field label="Stop loss">
-                <input
-                  aria-label="Order stop loss"
-                  type="number"
-                  step=".001"
-                  value={sl}
-                  onFocus={() => setPreviewActive(true)}
-                  onChange={(e) => setSL(e.target.value)}
-                  placeholder="Optional"
-                />
-              </Field>
-              <Field label="Take profit">
-                <input
-                  aria-label="Order take profit"
-                  type="number"
-                  step=".001"
-                  value={tp}
-                  onFocus={() => setPreviewActive(true)}
-                  onChange={(e) => setTP(e.target.value)}
-                  placeholder="Optional"
-                />
-              </Field>
-            </div>
-            <div className="risk-summary">
-              <div>
-                <span>Cash risk</span>
-                <b className={plannedRisk ? "red" : ""}>
-                  {plannedRisk === null ? "No initial SL" : money(plannedRisk)}
-                </b>
-              </div>
-              <div>
-                <span>Risk / reward</span>
-                <b>
-                  {plannedRisk && reward
-                    ? `1 : ${(reward / plannedRisk).toFixed(2)}`
-                    : "—"}
-                </b>
-              </div>
-              <div>
-                <span>Margin · {effectiveLots || 0} lot</span>
-                <b>{money(requiredMargin || 0)}</b>
-              </div>
-            </div>
-            <button
-              className={"submit-order " + side}
-              onClick={() =>
-                void (kind !== "market" && !previewActive
-                  ? newOrderDraft()
-                  : order())
-              }
-              disabled={
-                !session ||
-                busy ||
-                effectiveLots <= 0 ||
-                (previewActive &&
-                  kind !== "market" &&
-                  (!Number.isFinite(levelPrice) || levelPrice <= 0))
-              }
-            >
-              {busy
-                ? "Saving …"
-                : kind === "market"
-                  ? `${side === "buy" ? "Buy" : "Sell"} by Market`
-                  : previewActive
-                    ? "Place order"
-                    : "Make order"}
-              <ArrowUpRight size={15} />
-            </button>
-            {previewActive && kind !== "market" && (
-              <button className="cancel-draft" onClick={cancelDraft}>
-                Cancel draft
-              </button>
-            )}
-            <p className="micro">
-              100 oz / lot · minimum 0.01 lot · 1:
-              {session?.broker.specs.leverage ?? 500}
-              <br />
-              Simulator assumptions. {session?.broker.specs.commission ?? 0} USD
-              commission / lot / side.
-            </p>
-            <button
-              className="quiet notes-toggle"
-              onClick={() => setShowNotes(!showNotes)}
-            >
-              <PenLine size={13} /> Note <ChevronDown size={12} />
-            </button>
-            <div className="thesis-section">
-              <div className="section-label">
-                <PenLine size={13} />
-                TRADE NOTES
-              </div>
+              )}
               <textarea
-                placeholder="What do you see? What invalidates the idea?"
+                aria-label="Trade thesis"
                 value={thesis}
                 onChange={(e) => setThesis(e.target.value)}
-                rows={3}
+                placeholder="What would make your idea wrong?"
               />
-              <input
-                placeholder="Tags, separated by commas"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-              />
-              {session?.notebook.rules.map((rule) => (
-                <label className="checklist-row" key={rule.id}>
-                  <input
-                    type="checkbox"
-                    checked={!!session.checklist[rule.id]}
-                    onChange={(e) =>
-                      act({
-                        type: "ui",
-                        value: {
-                          checklist: {
-                            ...session.checklist,
-                            [rule.id]: e.target.checked,
-                          },
-                        },
-                      })
-                    }
-                  />
-                  <span>{displayDefault(rule.text)}</span>
-                </label>
-              ))}
-            </div>
-            <button
-              className="notebook-link"
-              onClick={() => setModal("notebook")}
-            >
-              <NotebookPen size={14} />
-              {displayDefault(session?.notebook.name ?? "My strategy notebook")}
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </aside>
+              <button onClick={() => setModal("notebook")}>
+                Strategy rules
+              </button>
+            </details>
+          </aside>
+        )}
         <aside
           className={"ai-panel " + (!session?.layout.ai ? "collapsed" : "")}
         >
@@ -1860,6 +2068,7 @@ function Sessions({
 }) {
   const [eligible, setEligible] = useState<any[]>([]),
     [date, setDate] = useState(""),
+    [challenge, setChallenge] = useState(""),
     [name, setName] = useState(state.session?.name ?? ""),
     [issue, setIssue] = useState("");
   useEffect(() => {
@@ -1881,6 +2090,21 @@ function Sessions({
         Resume exactly where you left off, or start at a new time with a
         separate account.
       </p>
+      <label className="field">
+        <span>Fri trening eller utfordring / Practice mode</span>
+        <select
+          aria-label="Practice mode"
+          value={challenge}
+          onChange={(e) => setChallenge(e.target.value)}
+        >
+          <option value="">Fri trening / Free practice</option>
+          {CHALLENGES.map((c, i) => (
+            <option value={c[0]} key={c[0]}>
+              {i + 1}. {c[1]} / {c[2]}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="session-choices">
         <button
           onClick={() =>
@@ -1897,12 +2121,22 @@ function Sessions({
           </span>
         </button>
         <button
-          onClick={() => void action({ type: "sessions.new" })}
+          onClick={() =>
+            void action({
+              type: "sessions.new",
+              challenge: challenge || undefined,
+            })
+          }
           disabled={!eligible.length}
         >
           <Shuffle />
           <b>Random session</b>
-          <span>Fresh window preferred · $500</span>
+          <span>
+            Fresh window ·{" "}
+            {state.session?.dataset === "dukascopy:NAS100"
+              ? "USD 10,000"
+              : (state.session?.broker.specs.currency ?? "USD") + " 500"}
+          </span>
         </button>
         <div className="date-choice">
           <Clock />
@@ -1923,7 +2157,11 @@ function Sessions({
             className="quiet"
             disabled={!date}
             onClick={() =>
-              void action({ type: "sessions.new", timestamp: Number(date) })
+              void action({
+                type: "sessions.new",
+                timestamp: Number(date),
+                challenge: challenge || undefined,
+              })
             }
           >
             Start new account
@@ -2299,135 +2537,145 @@ function SettingsModal({
       />
       <div className="settings-section">
         <h3>Chart Assistant · local AI</h3>
-        {value.provider === "managed" && <p className="micro">Automatic setup · no model selection or account is needed. The first launch downloads about 3.4 GB of verified files. Chart analysis stays on this PC. Keep the app open to finish; an interrupted download resumes next time.</p>}
-        <details><summary>Advanced AI settings (optional)</summary>
-        <p>
-          Replay and accounting work independently of AI. GPU mode uses the
-          selected offload setting. Low-memory mode uses a shorter context and
-          fewer GPU layers. Gaming mode unloads the model.
-        </p>
-        <div className="settings-grid">
-          <Field label="Local base address">
-            <input
-              value={value.url}
-              onChange={(e) => change({ url: e.target.value })}
-            />
-          </Field>
-          <Field label="Model ID (detected from runtime)">
-            <input
-              list="model-ids"
-              value={value.model}
-              onChange={(e) => change({ model: e.target.value })}
-            />
-            <datalist id="model-ids">
-              {state.ai.models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.vision ? "Vision" : "Text"}
-                </option>
-              ))}
-            </datalist>
-          </Field>
-          <Field label="Resource profile">
-            <select
-              value={value.profile}
-              onChange={(e) => change({ profile: e.target.value as any })}
-            >
-              <option value="normal">GPU · selected offload</option>
-              <option value="light">
-                Low memory · up to 4K / 25% of layers
-              </option>
-              <option value="gaming">Off / Gaming · unload</option>
-            </select>
-          </Field>
-          <Field label="Context budget">
-            <input
-              type="number"
-              min="1024"
-              max="32768"
-              step="1024"
-              value={value.context}
-              onChange={(e) => change({ context: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="Response limit (tokens)">
-            <input
-              type="number"
-              min="100"
-              max="4096"
-              value={value.maxTokens}
-              onChange={(e) => change({ maxTokens: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="GPU layers (not a utilization guarantee)">
-            <select
-              value={value.gpu}
-              onChange={(e) => change({ gpu: e.target.value })}
-            >
-              <option value="max">Maximum</option>
-              <option value="0.75">75% of layers</option>
-              <option value="0.5">50% of layers</option>
-              <option value="0.25">25% of layers</option>
-              <option value="off">CPU</option>
-            </select>
-          </Field>
-          <Field label="Unload after inactivity (minutes)">
-            <input
-              type="number"
-              min="1"
-              max="120"
-              value={value.idleMinutes}
-              onChange={(e) => change({ idleMinutes: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <div className="settings-checks">
-          {(
-            [
-              ["enabled", "Remember AI enabled"],
-              ["lazy", "Load on the first question"],
-              ["vision", "Include a chart image when supported"],
-              ["structured", "Structured rule review (JSON)"],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key}>
+        {value.provider === "managed" && (
+          <p className="micro">
+            Automatic setup · no model selection or account is needed. The first
+            launch downloads about 3.4 GB of verified files. Chart analysis
+            stays on this PC. Keep the app open to finish; an interrupted
+            download resumes next time.
+          </p>
+        )}
+        <details>
+          <summary>Advanced AI settings (optional)</summary>
+          <p>
+            Replay and accounting work independently of AI. GPU mode uses the
+            selected offload setting. Low-memory mode uses a shorter context and
+            fewer GPU layers. Gaming mode unloads the model.
+          </p>
+          <div className="settings-grid">
+            <Field label="Local base address">
               <input
-                type="checkbox"
-                checked={value[key]}
-                onChange={(e) => change({ [key]: e.target.checked })}
+                value={value.url}
+                onChange={(e) => change({ url: e.target.value })}
               />
-              {label}
-            </label>
-          ))}
-        </div>
-        <div className="modal-actions">
-          <button
-            className="primary"
-            onClick={() => void run({ type: "ai.settings", value })}
-          >
-            <Save size={14} />
-            Save AI profile
-          </button>
-          <button
-            className="secondary-button"
-            onClick={() => void run({ type: "ai.health" })}
-          >
-            Test / discover models
-          </button>
-          <button
-            className="secondary-button"
-            disabled={!state.settings.previous}
-            onClick={() => void run({ type: "ai.rollback" })}
-          >
-            Restore previous profile
-          </button>
-        </div>
-        <p className="micro">
-          {state.ai.message}
-          <br />
-          The tested fast profile uses Qwen3.5-4B with a text snapshot. Image
-          input is optional and slower. Downloaded models are kept locally;
-          replay works with the assistant off.
-        </p>
+            </Field>
+            <Field label="Model ID (detected from runtime)">
+              <input
+                list="model-ids"
+                value={value.model}
+                onChange={(e) => change({ model: e.target.value })}
+              />
+              <datalist id="model-ids">
+                {state.ai.models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.vision ? "Vision" : "Text"}
+                  </option>
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Resource profile">
+              <select
+                value={value.profile}
+                onChange={(e) => change({ profile: e.target.value as any })}
+              >
+                <option value="normal">GPU · selected offload</option>
+                <option value="light">
+                  Low memory · up to 4K / 25% of layers
+                </option>
+                <option value="gaming">Off / Gaming · unload</option>
+              </select>
+            </Field>
+            <Field label="Context budget">
+              <input
+                type="number"
+                min="1024"
+                max="32768"
+                step="1024"
+                value={value.context}
+                onChange={(e) => change({ context: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="Response limit (tokens)">
+              <input
+                type="number"
+                min="100"
+                max="4096"
+                value={value.maxTokens}
+                onChange={(e) => change({ maxTokens: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="GPU layers (not a utilization guarantee)">
+              <select
+                value={value.gpu}
+                onChange={(e) => change({ gpu: e.target.value })}
+              >
+                <option value="max">Maximum</option>
+                <option value="0.75">75% of layers</option>
+                <option value="0.5">50% of layers</option>
+                <option value="0.25">25% of layers</option>
+                <option value="off">CPU</option>
+              </select>
+            </Field>
+            <Field label="Unload after inactivity (minutes)">
+              <input
+                type="number"
+                min="1"
+                max="120"
+                value={value.idleMinutes}
+                onChange={(e) =>
+                  change({ idleMinutes: Number(e.target.value) })
+                }
+              />
+            </Field>
+          </div>
+          <div className="settings-checks">
+            {(
+              [
+                ["enabled", "Remember AI enabled"],
+                ["lazy", "Load on the first question"],
+                ["vision", "Include a chart image when supported"],
+                ["structured", "Structured rule review (JSON)"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key}>
+                <input
+                  type="checkbox"
+                  checked={value[key]}
+                  onChange={(e) => change({ [key]: e.target.checked })}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <div className="modal-actions">
+            <button
+              className="primary"
+              onClick={() => void run({ type: "ai.settings", value })}
+            >
+              <Save size={14} />
+              Save AI profile
+            </button>
+            <button
+              className="secondary-button"
+              onClick={() => void run({ type: "ai.health" })}
+            >
+              Test / discover models
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!state.settings.previous}
+              onClick={() => void run({ type: "ai.rollback" })}
+            >
+              Restore previous profile
+            </button>
+          </div>
+          <p className="micro">
+            {state.ai.message}
+            <br />
+            The tested fast profile uses Qwen3.5-4B with a text snapshot. Image
+            input is optional and slower. Downloaded models are kept locally;
+            replay works with the assistant off.
+          </p>
         </details>
       </div>
       {specs && (
@@ -2743,42 +2991,18 @@ function Fib({
   change: (p: Partial<Drawing>) => void;
   close: () => void;
 }) {
-  const [text, setText] = useState(drawing.levels.join(", "));
   return (
     <Modal title="Fibonacci levels" onClose={close}>
-      <Field label="Levels separated by commas">
-        <input value={text} onChange={(e) => setText(e.target.value)} />
-      </Field>
-      <p>
-        0 follows the first anchor and 1 the second. Both anchors can be moved
-        on the chart.
-      </p>
+      <FibEditor drawing={drawing} change={change} />
       <div className="modal-actions">
-        <button
-          className="secondary-button"
-          onClick={() => change({ a: drawing.b, b: drawing.a })}
-        >
-          Reverse direction
-        </button>
-        <button
-          className="primary"
-          onClick={() => {
-            const levels = text.split(",").map(Number);
-            if (
-              levels.length &&
-              levels.every((n) => Number.isFinite(n) && n >= -10 && n <= 10)
-            ) {
-              change({ levels });
-              close();
-            }
-          }}
-        >
-          Save levels
+        <button className="primary" onClick={close}>
+          Done
         </button>
       </div>
     </Modal>
   );
 }
+
 function Bottom({
   tab,
   session: s,
@@ -2800,6 +3024,7 @@ function Bottom({
   reviewTrade: (id: string) => void;
   locateTrade: (id: string) => void;
 }) {
+  const money = (n: number) => formatMoney(n, s.broker.specs.currency ?? "USD");
   const [editing, setEditing] = useState<any>(null),
     [image, setImage] = useState<string | null>(null),
     [overall, setOverall] = useState<any[]>([]),
@@ -2828,7 +3053,10 @@ function Bottom({
           {[
             ["Balance", money(s.broker.balance)],
             ["Equity", money(account(s.broker, s.tick).equity)],
-            ["Realized P/L", money(s.broker.balance - 500)],
+            [
+              "Realized P/L",
+              money(s.broker.balance - (s.broker.initialBalance ?? 500)),
+            ],
             ["Floating P/L", money(account(s.broker, s.tick).floating)],
             ["Used margin", money(account(s.broker, s.tick).usedMargin)],
             ["Free margin", money(account(s.broker, s.tick).freeMargin)],
@@ -3034,8 +3262,18 @@ function Bottom({
                         Decision chart
                       </button>
                     )}
-                    <button className="table-action" onClick={() => locateTrade(f.positionId)}>Show on chart</button>
-                    <button className="table-action" onClick={() => reviewTrade(f.positionId)}>Review with AI</button>
+                    <button
+                      className="table-action"
+                      onClick={() => locateTrade(f.positionId)}
+                    >
+                      Show on chart
+                    </button>
+                    <button
+                      className="table-action"
+                      onClick={() => reviewTrade(f.positionId)}
+                    >
+                      Review with AI
+                    </button>
                   </td>
                 </tr>
               ))}
