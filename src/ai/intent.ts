@@ -9,7 +9,7 @@ export function userQuestion(prompt: string) {
     .trim();
 }
 export function replyLanguage(prompt: string) {
-  return /[æøå]|\b(?:gi meg|gi et|kan du|var den|er den|ikke|traden|handelen|tidligere|forrige|hva|hvordan|hvorfor|hintet|se på|kjøp|selg)\b/i.test(
+  return /[æøå]|\b(?:gi meg|gi et|kan du|var den|er den|ikke|traden|handelen|tidligere|forrige|hva|hvordan|hvorfor|oppsett|vurder|tidsramme|innganger|hintet|se på|kjøp|selg)\b/i.test(
     userQuestion(prompt),
   )
     ? "Norwegian"
@@ -79,7 +79,10 @@ export function savedHistoryAnswer(session: Session, prompt: string) {
           ? no
             ? "åpen"
             : "open"
-          : (t.net >= 0 ? "+" : "") + t.net.toFixed(2) + " USD") +
+          : (t.net >= 0 ? "+" : "") +
+            t.net.toFixed(2) +
+            " " +
+            (session.broker.specs.currency ?? "USD")) +
         ")",
     )
     .join("; ");

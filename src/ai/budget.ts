@@ -15,8 +15,11 @@ export function fitContext(
   value.tradeHistory = value.tradeHistory.slice(0, 8);
   if (value.reviewAtDecision) {
     value.reviewAtDecision.candles = value.reviewAtDecision.candles.slice(-32);
-    value.reviewAtDecision.secondCandles = value.reviewAtDecision.secondCandles.slice(-12);
-    if (value.reviewAtDecision.strategy?.text) value.reviewAtDecision.strategy.text = value.reviewAtDecision.strategy.text.slice(0, 1000);
+    value.reviewAtDecision.secondCandles =
+      value.reviewAtDecision.secondCandles.slice(-12);
+    if (value.reviewAtDecision.strategy?.text)
+      value.reviewAtDecision.strategy.text =
+        value.reviewAtDecision.strategy.text.slice(0, 1000);
   }
   value.candles = value.candles.slice(-32);
   value.secondCandles = value.secondCandles.slice(-16);

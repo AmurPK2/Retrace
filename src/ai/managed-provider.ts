@@ -99,10 +99,15 @@ export class ManagedLocalProvider extends LMStudioProvider {
     this.report({
       state: "starting",
       message:
-        "Preparing your local chart coach automatically. First download is about 3.4 GB. Replay stays available.",
+        "Preparing your local chart coach automatically. First download is about " +
+        (/9b/i.test(this.settings.model) ? "6.6" : "3.4") +
+        " GB. Replay stays available.",
     });
+    const selectedManifest = /9b/i.test(this.settings.model)
+      ? manifest.quality
+      : manifest;
     const models: string[] = [];
-    for (const spec of manifest.models as DownloadSpec[])
+    for (const spec of selectedManifest.models as DownloadSpec[])
       models.push(
         await verifiedDownload(
           spec,
@@ -161,9 +166,13 @@ export class ManagedLocalProvider extends LMStudioProvider {
           kind === "vulkan" ? "99" : "0",
           "--no-webui",
           "--reasoning",
-          "off",
+          /9b/i.test(this.settings.model) && !/fast/i.test(this.settings.model)
+            ? "on"
+            : "off",
           "--reasoning-budget",
-          "0",
+          /9b/i.test(this.settings.model) && !/fast/i.test(this.settings.model)
+            ? "768"
+            : "0",
           "--image-max-tokens",
           "1024",
         ];

@@ -366,10 +366,31 @@ export class LMStudioProvider implements CoachProvider {
         model: this.instance,
         messages,
         stream: true,
-        temperature: 0.3,
-        max_tokens: this.settings.maxTokens,
-        reasoning_effort: "none",
-        chat_template_kwargs: { enable_thinking: false },
+        temperature:
+          this.settings.provider === "managed" &&
+          /9b/i.test(this.settings.model) &&
+          !/fast/i.test(this.settings.model)
+            ? 0.6
+            : 0.3,
+        max_tokens:
+          this.settings.maxTokens +
+          (this.settings.provider === "managed" &&
+          /9b/i.test(this.settings.model) &&
+          !/fast/i.test(this.settings.model)
+            ? 768
+            : 0),
+        reasoning_effort:
+          this.settings.provider === "managed" &&
+          /9b/i.test(this.settings.model) &&
+          !/fast/i.test(this.settings.model)
+            ? "medium"
+            : "none",
+        chat_template_kwargs: {
+          enable_thinking:
+            this.settings.provider === "managed" &&
+            /9b/i.test(this.settings.model) &&
+            !/fast/i.test(this.settings.model),
+        },
         ...(this.settings.structured
           ? {
               response_format: {
