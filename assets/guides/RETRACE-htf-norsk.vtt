@@ -1,49 +1,51 @@
 WEBVTT
 
-00:00:00.300 --> 00:00:05.048
-HTF candles viser større candles ved siden av hovedchartet.
+00:00:00.300 --> 00:00:04.103
+Side-candlen viser én pågående firetimers periode som standard.
 
-00:00:05.048 --> 00:00:08.213
-Du ser kropp, veker og prisnivåene.
+00:00:04.103 --> 00:00:06.480
+Den deler prisskala med hovedchartet.
 
-00:00:08.213 --> 00:00:11.905
-Forming betyr at candlen fortsatt utvikler seg.
+00:00:06.480 --> 00:00:09.333
+Samme pris ligger på samme høyde.
 
-00:00:11.905 --> 00:00:13.488
-Nedtellingen følger replay-klokken.
+00:00:09.333 --> 00:00:16.464
+Kroppen går fra åpningen til prisen nå, mens vekene viser høyeste og laveste pris
+hittil.
 
-00:00:13.488 --> 00:00:17.707
-Appen bruker bare prisene som allerede har kommet.
+00:00:16.464 --> 00:00:23.120
+En ung firetimers candle kan være liten fordi prisen ennå har beveget seg lite.
 
-00:00:17.707 --> 00:00:23.510
-Den henter ikke en fremtidig sluttpris fra den ferdige historiske candlen.
+00:00:24.133 --> 00:00:29.874
+Når du zoomer prisskalaen, endrer høyden seg sammen med de vanlige candlene.
 
-00:00:24.550 --> 00:00:32.774
-Kildevideoen fra Jack Trades viser en Power of Three-variant med en stor candle fra
-indikatoren til Two Degrees.
+00:00:29.874 --> 00:00:33.702
+Tilpass lar deg endre bredden, fargene og antallet.
 
-00:00:32.774 --> 00:00:39.170
-Eksempelet bruker firetimers åpning som kontekst, deretter en lokal bekreftelse og
-en lokal stopp.
+00:00:33.702 --> 00:00:37.050
+Bredden endrer bare hvor tykk candlen er.
 
-00:00:39.170 --> 00:00:43.738
-Det sier ikke at firetimers sluttpris alltid skal være stopp.
+00:00:37.050 --> 00:00:42.791
+Hvis hele området ikke får plass, trykker du Vis hele firetimers candlen.
 
-00:00:43.738 --> 00:00:47.850
-Dette er et kildeeksempel, ikke en komplett bevist strategi.
+00:00:42.791 --> 00:00:45.183
+Den knappen tilpasser chartets prisskala.
 
-00:00:48.883 --> 00:00:52.828
-RETRACE bruker firetimers perioder avgrenset i UTC.
+00:00:46.217 --> 00:00:47.782
+Nedtellingen følger replay-tiden.
 
-00:00:52.828 --> 00:00:57.336
-Tidssonen endrer etikettene, ikke hvilke priser som inngår.
+00:00:47.782 --> 00:00:50.390
+Åpningene er avgrenset i UTC.
 
-00:00:57.336 --> 00:01:01.843
-Markedspauser og datagap kan gjøre en periode ufullstendig.
+00:00:50.390 --> 00:00:55.086
+Space går en candle fram på tidsrammen du bruker.
 
-00:01:01.843 --> 00:01:05.788
-Velg størrelse, antall og farger i side-candleinnstillingene.
+00:00:55.086 --> 00:01:02.389
+Kildevideoens Power of Three-eksempel bruker firetimers åpning som kontekst, så
+lokal bekreftelse og stopp.
 
-00:01:05.788 --> 00:01:14.803
-Øvelse: følg den pågående kroppen noen steg, uten å behandle dens nåværende
-sluttpris som ferdig bekreftelse.
+00:01:02.389 --> 00:01:07.085
+Det gjør ikke firetimers sluttpris til en automatisk stopp.
+
+00:01:07.085 --> 00:01:13.867
+Øvelse: følg kroppen noen steg, og forklar hva som fortsatt kan endre seg.

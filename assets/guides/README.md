@@ -1,3 +1,3 @@
-# Original RETRACE guides
+# RETRACE 0.3.2 guides
 
-Six Norwegian guides, with original narration and real packaged-app screenshots/replay from an isolated demonstration profile. No personal sessions or third-party video footage. Source notes: [HTF and learning](../../docs/HTF-SOURCES.md). MP4 (H.264/AAC), optional WebVTT captions, JPEG posters; offline after installation.
+Six updated Norwegian offline guides with original narration, captions and actual packaged-app captures from an isolated demonstration profile. No private sessions or third-party video footage. Open Lær 4H for the direct 4H tutorial. The side candle shares the main price scale; width is adjustable. See [source notes](../../docs/HTF-SOURCES.md).

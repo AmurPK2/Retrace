@@ -28,18 +28,18 @@ Lagre innstillingene som ditt eget preset.
 Simple preset er et forslag til en enkel visning, ikke en universell lønnsom
 oppskrift.
 
-00:00:40.508 --> 00:00:44.756
+00:00:40.508 --> 00:00:44.771
 Reverse anchors bytter hvilket punkt som er null og én.
 
-00:00:44.756 --> 00:00:47.730
+00:00:44.771 --> 00:00:47.755
 Prisene beregnes på nytt i riktig retning.
 
-00:00:47.730 --> 00:00:51.554
+00:00:47.755 --> 00:00:51.592
 Tegningen beholder ekte tidspunkt og priser når tidsrammen endres.
 
-00:00:51.554 --> 00:01:00.475
+00:00:51.592 --> 00:01:00.544
 Øvelse: skriv ned prisen ved et nivå, bytt fra fire timer til femten minutter og
 kontroller at den er den samme.
 
-00:01:00.475 --> 00:01:03.448
-Bruk Objects for å finne tegningen igjen.
+00:01:00.544 --> 00:01:03.528
+Bruk Tegninger for å finne tegningen igjen.

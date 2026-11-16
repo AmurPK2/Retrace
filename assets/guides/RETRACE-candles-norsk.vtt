@@ -15,36 +15,39 @@ Du vet ikke hvor den vil slutte.
 00:00:14.057 --> 00:00:18.970
 Bruk ferdige candles når regelen din krever en bekreftet sluttpris.
 
-00:00:20.008 --> 00:00:21.995
+00:00:20.008 --> 00:00:21.960
 C1 er referansecandlen.
 
-00:00:21.995 --> 00:00:27.956
+00:00:21.960 --> 00:00:27.816
 C2 er den neste ferdige candlen, og C3 kommer etter.
 
-00:00:27.956 --> 00:00:31.433
-Marker C1 med Marker C1 C2.
+00:00:27.816 --> 00:00:31.231
+Åpne Mer og velg Velg C1 C2.
 
-00:00:31.433 --> 00:00:36.401
+00:00:31.231 --> 00:00:33.671
+Klikk så på C1.
+
+00:00:33.671 --> 00:00:38.551
 Sammenlign sluttprisen med C1 sin høyeste og laveste pris.
 
-00:00:36.401 --> 00:00:41.368
+00:00:38.551 --> 00:00:43.431
 En veke utenfor området er forskjellig fra en sluttpris utenfor.
 
-00:00:41.368 --> 00:00:44.348
+00:00:43.431 --> 00:00:46.358
 Ingen av delene garanterer neste bevegelse.
 
-00:00:45.383 --> 00:00:48.559
+00:00:47.383 --> 00:00:50.559
 Fire timer kan vise det større området.
 
-00:00:48.559 --> 00:00:54.002
+00:00:50.559 --> 00:00:56.002
 Femten, fem eller ett minutt viser hvordan prisen beveger seg inni området.
 
-00:00:54.002 --> 00:00:58.084
+00:00:56.002 --> 00:01:00.084
 Lavere tidsramme gir flere detaljer, men også mer støy.
 
-00:00:58.084 --> 00:01:04.435
+00:01:00.084 --> 00:01:06.435
 Øvelse: behold den samme linjen mens du bytter mellom fire timer og femten
 minutter.
 
-00:01:04.435 --> 00:01:08.063
+00:01:06.435 --> 00:01:10.063
 Skriv hvilken bekreftelse du vil kreve før inngang.
