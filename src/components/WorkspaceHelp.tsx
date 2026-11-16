@@ -83,10 +83,12 @@ export function WorkspaceHelp() {
       <section>
         <h3>Lag og juster en ordre</h3>
         <p>
-          Høyreklikk ved ønsket pris og velg en ordre. Dra inngang, SL og TP
-          hver for seg. Størrelsen i lots står rett ved inngangsnivået.
-          Kontroller kontant risiko og trykk <b>Legg inn ordre</b> for å legge
-          ordren inn i replayen.
+          Høyreklikk ved ønsket pris og velg en ordre. Dra + SL eller + TP fra
+          inngangslinjen til ønsket pris. Inngangen står i ro. Escape avbryter.
+          Når nivåene er satt, kan du dra inngang, SL og TP hver for seg.
+          Størrelsen i lots står rett ved inngangsnivået. Kontroller kontant
+          risiko og trykk <b>Legg inn ordre</b> for å legge ordren inn i
+          replayen.
         </p>
         <p>
           En ventende ordre kan få ny størrelse før den fylles. En fylt posisjon
