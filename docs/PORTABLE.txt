@@ -1,4 +1,4 @@
-RETRACE 0.3.2 for Windows
+RETRACE 0.4.0 for Windows
 
 Extract the entire ZIP, then open RETRACE.exe. First setup downloads genuine
 starter gold history and about 3.4 GB of pinned, hash-checked local AI files.
@@ -10,10 +10,10 @@ Right-click the chart for a new order draft. ENTRY, SL and TP move separately.
 Space / Right Arrow: next candle. P: play/pause. Fields and video guides capture
 their own keys. All trades are simulated; there is no broker order route.
 
-Lær 4H opens the 4H tutorial and video directly. Six offline guides include
-Norwegian narration, captions and fullscreen. Utfordringer starts ten task
-types in any session, with saved answers, progress and bounded local-AI
-feedback. Mer explains extra tools. Tegninger manages saved drawings.
+Lær og øv opens one ten-step learning path with explanations, six offline
+Norwegian guides, locked answers and retained attempts. Attempted, completed,
+facts checked and demonstrated understanding are separate. Revealing a candle
+or winning a trade does not earn mastery. Local AI feedback is experimental. Mer explains extra tools. Tegninger manages saved drawings.
 4H-candle uses the main chart price scale; width is adjustable separately.
 
 XAUUSD, EURAUD and NAS100 CFD have separate feeds/specifications. EURAUD uses

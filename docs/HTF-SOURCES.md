@@ -23,3 +23,11 @@ This is an educational PO3 example, not a verified full C1/C2/C3 rule set or pro
 The visible **Lær 4H** button opens the 4H tutorial directly. Six updated original Norwegian guides ship with the app: workflow, candles/timeframes, HTF/PO3, risk/two entries, Fibonacci and coach feedback. Images and replay sequences come from an isolated RETRACE demonstration session with real historical ticks. Narration is original, with Norwegian synthetic speech and optional sentence captions. No private sessions, Telegram sources, charts from the creator's account or copied third-party video are included.
 
 Fibonacci defaults are measurement/display suggestions, not sourced profitability rules. C1/C2 exercises check candle relationships and recorded risk plans separately from the PO3 source example. The in-app source button opens only the fixed primary video URL; it is not an arbitrary browser-navigation endpoint.
+
++
++## Unified beginner path (learning workstream, 16 November 2026)
++
++Both learning entry components render the same Norwegian-first path with optional English text. Ten steps move through candle OHLC and wicks, completion, C1/C2/C3, lower timeframes, meaningful levels and Fibonacci anchors, decisions/waiting, invalidation, sizing, R:R, two entries and reflection. Existing offline guide indices are reused beside the relevant lesson: workflow 0, candles 1, HTF/PO3 2, risk 3, Fibonacci 4, coach 5. English UI labels do not imply an English soundtrack: the six existing recordings remain Norwegian.
++
++Exercise assessment freezes completed candles only, plus the current decision quote, plan and learner text. Forming candles remain visible on the chart but cannot become completed confirmation in the exercise. PO3 remains a separately sourced example; no C1/C2/C3 entry strategy is inferred from it. Legacy read markers and revealed outcomes do not grant mastery. Integration must consolidate App entry labels and recapture only the guide segments listed in the learning HANDOFF after the new shell is present; this workstream does not regenerate or alter the six video files.
++
