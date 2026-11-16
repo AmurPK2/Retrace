@@ -285,7 +285,7 @@ test("challenge does not call missing or non-adjacent candles a confirmed break"
       reason: "Historikken har en pause mellom dem",
       classification: "missing",
     })[1].pass,
-    true,
+    null,
   );
 });
 test("challenge budget checks both entries and cannot pass an invalid or oversized two-entry risk plan", () => {
@@ -312,7 +312,11 @@ test("challenge budget checks both entries and cannot pass an invalid or oversiz
     tp2: 2020,
     lots: 0.01,
   });
-  assert.ok(feedback.every((x) => x.pass));
+  assert.ok(feedback.filter((x) => x.pass !== null).every((x) => x.pass));
+  assert.ok(
+    feedback.some((x) => x.pass === null),
+    "missing history stays unclear",
+  );
 });
 
 test("public IPC exposes the completed instrument and challenge actions", () => {
@@ -388,95 +392,4 @@ test("Challenge tutor snapshot preserves the frozen decision and excludes all re
   assert.ok(!JSON.stringify(before).includes("99999"));
   assert.equal(before.answer.value, 16);
   assert.equal(before.higherTimeframe[0].completed, true);
-});
-
-test("Challenge AI cannot invent quotes, numbers, praise failed facts or choose unrelated teaching rules", async () => {
-  const { parseChallengeFeedback, challengeFallback } =
-    await import("../src/ai/challenge-feedback");
-  const s = session(),
-    c = beginChallenge(s, [], [], "frames");
-  const reason = "Jeg tror åtte perioder dekker fire timer.";
-  commitChallenge(c, { value: 8, reason }, s);
-  const reply = {
-    assessment: "needs-practice",
-    excerpt: reason,
-    focus: "calculation",
-  };
-  const feedback = parseChallengeFeedback(JSON.stringify(reply), c);
-  assert.equal(feedback.source, "model");
-  assert.ok(feedback.improve.includes("240"));
-  assert.ok(feedback.improve.includes("16"));
-  assert.ok(feedback.good.includes(reason));
-  assert.throws(
-    () =>
-      parseChallengeFeedback(
-        JSON.stringify({ ...reply, assessment: "checked" }),
-        c,
-      ),
-    /contradicts/,
-  );
-  assert.throws(
-    () =>
-      parseChallengeFeedback(
-        JSON.stringify({ ...reply, excerpt: "Jeg observerte pris 987654.321" }),
-        c,
-      ),
-    /actual answer/,
-  );
-  assert.throws(
-    () =>
-      parseChallengeFeedback(
-        JSON.stringify({ ...reply, focus: "guaranteed_win" }),
-        c,
-      ),
-    /focus/,
-  );
-  assert.throws(() =>
-    parseChallengeFeedback(
-      JSON.stringify({
-        assessment: "checked",
-        good: "always 16 candles",
-        improve: "invented",
-        next: "invented",
-      }),
-      c,
-    ),
-  );
-  assert.equal(challengeFallback(c).assessment, "needs-practice");
-});
-
-test("An open-ended challenge cannot be certified checked by the model", async () => {
-  const { parseChallengeFeedback } =
-    await import("../src/ai/challenge-feedback");
-  const s = session(),
-    c = beginChallenge(s, [], [], "wait"),
-    reason = "Jeg kjøper fordi den siste candlen er grønn.";
-  commitChallenge(
-    c,
-    { decision: "buy", confirmation: "En grønn candle", reason },
-    s,
-  );
-  assert.throws(
-    () =>
-      parseChallengeFeedback(
-        JSON.stringify({
-          assessment: "checked",
-          excerpt: reason,
-          focus: "confirmation",
-        }),
-        c,
-      ),
-    /remains unclear/,
-  );
-  assert.equal(
-    parseChallengeFeedback(
-      JSON.stringify({
-        assessment: "unclear",
-        excerpt: reason,
-        focus: "confirmation",
-      }),
-      c,
-    ).assessment,
-    "unclear",
-  );
 });

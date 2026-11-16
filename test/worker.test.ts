@@ -872,3 +872,36 @@ test("interrupted challenge review recovers its answer and can return to free pr
     f.cleanup();
   }
 });
+
+test("failed instrument data load preserves current session and future new-session dataset", async () => {
+  const f = fixture();
+  const store = new Store(f.root);
+  for (const chunk of store.chunks("dukascopy"))
+    store.putChunk({
+      ...chunk,
+      dataset: "dukascopy:EURAUD",
+      sha: "0".repeat(64),
+    });
+  store.close();
+  const w = worker(f.root);
+  try {
+    await w.call({ type: "sessions.new", timestamp: f.base + 25 * 3600000 });
+    const before = (await w.call({ type: "state" })).session;
+    await assert.rejects(
+      w.call({ type: "instrument", value: "EURAUD" }),
+      /Integrity failure/,
+    );
+    const after = (await w.call({ type: "state" })).session;
+    for (const key of ["id", "dataset", "tick", "broker", "drawings", "chat"])
+      assert.deepEqual(after[key], before[key]);
+    await w.call({ type: "sessions.new", timestamp: f.base + 26 * 3600000 });
+    assert.equal(
+      (await w.call({ type: "state" })).session.dataset,
+      "dukascopy",
+    );
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
