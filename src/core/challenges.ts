@@ -1,13 +1,13 @@
 import { FRAMES, type Bar, type Session } from "../types";
 import { draftIssues, combinedPlanRisk } from "./order-validation";
-export const CHALLENGE_VERSION = "retrace-foundations-v2";
+export const CHALLENGE_VERSION = "retrace-foundations-v3";
 export const CHALLENGES = [
   [
     "candles",
     "Les en candle",
     "Read a candle",
-    "Finn høyeste pris i siste ferdige 4H-candle. En kropp viser open–close; vekene viser high–low. Skriv hvorfor den er ferdig.",
-    "Find the high of the last completed 4H candle. Body means open–close; wicks show high–low. Explain why it is completed.",
+    "Finn høyeste pris i siste ferdige 4H-candle. En kropp viser open–close; vekene viser high–low. Forklar kroppen og vekene med egne ord, og hvorfor perioden er ferdig.",
+    "Find the high of the last completed 4H candle. Body means open–close; wicks show high–low. Explain the body and wicks in your own words, and why the period is complete.",
   ],
   [
     "pair",
@@ -27,8 +27,8 @@ export const CHALLENGES = [
     "level",
     "Ett viktig nivå",
     "One meaningful level",
-    "Tegn eller skriv ett nivå innenfor den viste 4H-historikken. Forklar hvilken candle eller veke du bruker.",
-    "Draw or enter one level within the shown 4H history. Explain which candle or wick supports it.",
+    "Skriv prisen på ett nivå i den viste 4H-historikken; tegn det gjerne også. Forklar hvilken candle eller veke du bruker.",
+    "Enter the price of one level in the shown 4H history; you can also draw it. Explain which candle or wick supports it.",
   ],
   [
     "wait",
@@ -102,6 +102,14 @@ export type ChallengeFeedback = {
   next: string;
   evidence?: string[];
   note?: string;
+  rubricVersion?: string;
+  reasoning?: {
+    criterion: string;
+    verdict: "supported" | "contradicted" | "unclear";
+    excerpt: string;
+    evidence: string;
+    explanation: string;
+  }[];
 };
 export type Challenge = {
   id: string;
@@ -125,6 +133,12 @@ export type Challenge = {
   checks?: ChallengeCheck[];
   endedAt?: number;
   revealedAt?: number;
+  prior?: {
+    id: string;
+    cutoff: number;
+    answer: ChallengeAnswer;
+    checks: ChallengeCheck[];
+  };
   outcome?: { from: number; to: number; status: string; balance: number };
 };
 export type Learning = {
@@ -150,15 +164,42 @@ export function beginChallenge(
     dataset: s.dataset,
     quote: { ...s.tick },
     bars: structuredClone(
-      bars.filter((b) => b.time * 1000 <= s.tick.t).slice(-64),
+      bars
+        .filter((b) => (b.time + FRAMES[s.layout.timeframe]) * 1000 <= s.tick.t)
+        .slice(-64),
     ),
     htf: structuredClone(
-      htf.filter((b) => b.time * 1000 <= s.tick.t).slice(-12),
+      htf.filter((b) => (b.time + FRAMES["4H"]) * 1000 <= s.tick.t).slice(-12),
     ),
     specs: { ...s.broker.specs },
     drawings: structuredClone(s.drawings),
     orders: structuredClone(s.broker.pending),
     strategy: structuredClone(s.notebook),
+    ...(stage === "reflect"
+      ? {
+          prior: (() => {
+            const previous = s.learning
+              ? [...s.learning.history, s.learning.active]
+                  .filter(
+                    (x) =>
+                      x.answer &&
+                      x.stage !== "reflect" &&
+                      x.cutoff <= s.tick.t &&
+                      x.seq <= s.broker.seq,
+                  )
+                  .at(-1)
+              : undefined;
+            return previous?.answer
+              ? structuredClone({
+                  id: previous.id,
+                  cutoff: previous.cutoff,
+                  answer: previous.answer,
+                  checks: previous.checks ?? [],
+                })
+              : undefined;
+          })(),
+        }
+      : {}),
   };
 }
 export function pairClass(c: Challenge) {
@@ -173,6 +214,36 @@ export function pairClass(c: Challenge) {
   if (b.close < a.low) return "close-below";
   if (b.high > a.high || b.low < a.low) return "wick";
   return "inside";
+}
+export function challengeRuleIssue(reason: string, nb = true) {
+  for (const sentence of reason.split(/[.!?]\s*/)) {
+    if (
+      /\b(?:ikke|aldri|not|never|cannot|can’t|can't|feil|wrong)\b/i.test(
+        sentence,
+      )
+    )
+      continue;
+    if (
+      /(?:alltid|always|universell|universal)/i.test(sentence) &&
+      /\b(?:sl|stop)\b/i.test(sentence) &&
+      /4h.{0,18}(?:close|slutt)|4[- ]?timers.{0,18}(?:close|slutt)/i.test(
+        sentence,
+      )
+    )
+      return nb
+        ? "En 4H-close er ikke en universell SL-regel. Knytt stopnivået til det som gjør din konkrete idé feil."
+        : "A 4H close is not a universal SL rule. Tie the stop to the observation that invalidates your particular idea.";
+    if (
+      /(?:alltid|always|universell|universal)/i.test(sentence) &&
+      /\b(?:tp|target|mål)\b/i.test(sentence) &&
+      /(?:utenfor|outside)/i.test(sentence) &&
+      /(?:candle|range|område)/i.test(sentence)
+    )
+      return nb
+        ? "Et mål innenfor et candleområde er ikke automatisk feil. Begrunn målet fra den valgte planen."
+        : "A target within a candle range is not automatically wrong. Justify it from the selected plan.";
+  }
+  return null;
 }
 export function checkChallenge(
   c: Challenge,
@@ -202,7 +273,7 @@ export function checkChallenge(
       text("Høyeste pris i ferdig candle", "Completed candle high"),
       last
         ? Math.abs((a.value ?? NaN) - last.high) < 10 ** -precision / 2
-        : false,
+        : null,
       last
         ? text("Siste ferdige 4H high: ", "Last completed 4H high: ") +
             last.high +
@@ -216,7 +287,7 @@ export function checkChallenge(
   if (c.stage === "pair")
     add(
       text("C2-observasjon", "C2 observation"),
-      a.classification === pairClass(c),
+      pairClass(c) === "missing" ? null : a.classification === pairClass(c),
       text("Observerbar klasse: ", "Observable class: ") +
         pairClass(c) +
         text(
@@ -238,7 +309,9 @@ export function checkChallenge(
       high = Math.max(...c.htf.map((b) => b.high));
     add(
       text("Nivå i synlig historikk", "Level within visible history"),
-      Number.isFinite(a.value) && a.value! >= low && a.value! <= high,
+      c.htf.length
+        ? Number.isFinite(a.value) && a.value! >= low && a.value! <= high
+        : null,
       text("Synlig område: ", "Visible range: ") +
         low +
         "–" +
@@ -285,6 +358,8 @@ export function checkChallenge(
         : []),
     ];
     const errors = entries.flatMap((p) => draftIssues(p, c.specs));
+    if (c.stage !== "invalidation" && a.lots === undefined)
+      errors.push(text("Størrelse mangler.", "Size missing."));
     if (a.sl === undefined) errors.push(text("SL mangler.", "SL missing."));
     if (a.decision !== "buy" && a.decision !== "sell")
       errors.push(text("Velg retning.", "Choose a direction."));
@@ -335,15 +410,36 @@ export function checkChallenge(
         "B has 2R versus A at 1R. The farther target may be harder to reach; win probability has not been measured.",
       ),
     );
-  if (["wait", "reflect", "level"].includes(c.stage))
+  if (c.stage === "reflect")
     add(
-      text("Faglig begrunnelse", "Reasoning quality"),
+      text("Tidligere beslutning", "Earlier decision"),
+      c.prior ? true : null,
+      c.prior
+        ? text(
+            "Et tidligere låst svar er vedlagt uten senere resultat.",
+            "An earlier locked answer is attached without later outcomes.",
+          )
+        : text(
+            "Lagre en annen oppgave først. Ingen tidligere beslutning kan kontrolleres her.",
+            "Save another exercise first. No earlier decision can be verified here.",
+          ),
+    );
+  if (
+    !["frames", "compare", "reflect"].includes(c.stage) &&
+    (c.htf.length < 2 ||
+      !!c.htf.at(-1)?.gapBefore ||
+      c.htf.at(-1)!.time - c.htf.at(-2)!.time !== FRAMES["4H"])
+  )
+    add(
+      text("Datagrunnlag", "Evidence coverage"),
       null,
       text(
-        "Registrert for egen gjennomgang og AI-coach. Appen gir ingen automatisk fasit på fritekstens faglige kvalitet.",
-        "Saved for reflection and the AI coach. The app does not automatically certify the reasoning quality of free text.",
+        "Minst to ferdige 4H-candles trengs for denne vurderingen.",
+        "At least two completed 4H candles are required for this review.",
       ),
     );
+  const ruleIssue = challengeRuleIssue(a.reason, nb);
+  if (ruleIssue) add(text("Regelgrense", "Rule boundary"), false, ruleIssue);
   return checks;
 }
 export function commitChallenge(
@@ -373,4 +469,44 @@ export function commitChallenge(
   c.orders = structuredClone(s.broker.pending);
   c.strategy = structuredClone(s.notebook);
   c.checks = checkChallenge(c, a, nb);
+}
+
+// Derived, non-destructive migration: old attempts remain byte-for-byte intact.
+// Never interpret legacy 'checked', read markers or a revealed win as mastery.
+export const REASONING_VERSION = "reasoning-evidence-v1";
+export function challengeProgress(c: Challenge) {
+  const factual =
+    !!c.answer && !!c.checks?.length && c.checks.every((x) => x.pass === true);
+  const reasoning =
+    c.feedback?.status === "complete" &&
+    c.feedback.rubricVersion === REASONING_VERSION &&
+    c.feedback.assessment === "checked" &&
+    c.feedback.reasoning?.length === 2 &&
+    new Set(c.feedback.reasoning.map((x) => x.criterion)).size === 2 &&
+    c.feedback.reasoning.every((x) =>
+      ["criterion.0", "criterion.1"].includes(x.criterion),
+    ) &&
+    c.feedback.reasoning.every((x) => x.verdict === "supported");
+  return {
+    attempted: true,
+    completed: !!c.answer && c.committedAt !== undefined,
+    factual,
+    mastered: c.version === CHALLENGE_VERSION && factual && reasoning,
+  };
+}
+export function learningProgress(learning?: Learning) {
+  const attempts = learning ? [...learning.history, learning.active] : [];
+  return CHALLENGES.map(([id]) => {
+    const matches = attempts
+      .filter((a) => a.stage === id)
+      .map(challengeProgress);
+    return {
+      id,
+      attempted: matches.length > 0,
+      completed: matches.some((x) => x.completed),
+      factual: matches.some((x) => x.factual),
+      mastered: matches.some((x) => x.mastered),
+      attempts: matches.length,
+    };
+  });
 }
