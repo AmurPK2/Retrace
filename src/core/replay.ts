@@ -1,3 +1,8 @@
+import {
+  INSTRUMENTS,
+  instrumentForDataset,
+  openGapMillis,
+} from "./instruments";
 import { randomUUID, randomInt } from "node:crypto";
 import { Store, type Chunk } from "../data/store";
 import { initialBroker, processTick } from "./broker";
@@ -37,14 +42,14 @@ export class Replay {
     const chunks = this.store.chunks(dataset),
       map = new Map(chunks.map((c) => [c.hour, c]));
     const range = this.store.meta<{ replayFrom?: number; replayTo?: number }>(
-      "importRange",
-      {},
+      "importRange:" + dataset,
+      dataset === "dukascopy" ? this.store.meta("importRange", {}) : {},
     );
     return chunks.filter((c) => {
       if (
         !this.reliable(c) ||
         !c.count ||
-        (dataset === "dukascopy" &&
+        (dataset.startsWith("dukascopy") &&
           range.replayFrom &&
           c.hour < range.replayFrom)
       )
@@ -75,7 +80,7 @@ export class Replay {
     const prior = this.store
       .list()
       .map((x) => this.store.load(String(x.id))!)
-      .filter(Boolean)
+      .filter((x) => x?.dataset === dataset)
       .map((x) => ({
         start: x.start,
         end: Math.max(x.tick.t, x.start + 4 * 3600000),
@@ -113,7 +118,10 @@ export class Replay {
       start: q.t,
       cursor: { hour: chosen.hour, index },
       tick: q,
-      broker: initialBroker(),
+      broker: initialBroker(
+        INSTRUMENTS[instrumentForDataset(dataset)].specs,
+        instrumentForDataset(dataset) === "NAS100" ? 10000 : 500,
+      ),
       drawings: [],
       undo: [],
       redo: [],
@@ -194,7 +202,12 @@ export class Replay {
         const ticks = this.getTicks(hour);
         if (
           index < ticks.length &&
-          ticks[index].t - s.tick.t - skipped > 300000
+          ticks[index].t - s.tick.t - skipped > 300000 &&
+          openGapMillis(
+            s.tick.t,
+            ticks[index].t,
+            instrumentForDataset(s.dataset),
+          ) > 300000
         )
           throw Error(
             `Unexpected tick gap of ${Math.round((ticks[index].t - s.tick.t - skipped) / 60000)} open minutes. Replay is paused.`,
@@ -252,6 +265,23 @@ export class Replay {
       if (n > 2000000) throw Error("Too many ticks in one step.");
     }
     return n;
+  }
+  barsAt(cutoff: number, tf: TF): Bar[] {
+    const current = this.session;
+    if (!current || cutoff > current.tick.t) return [];
+    const hour = Math.floor(cutoff / 3600000) * 3600000,
+      c = this.store.chunk(current.dataset, hour);
+    if (!c || c.status !== "ready") return [];
+    const ticks = this.store.readTicks(c);
+    let index = ticks.length - 1;
+    while (index >= 0 && ticks[index].t > cutoff) index--;
+    if (index < 0) return [];
+    const snapshot = {
+      ...current,
+      tick: ticks[index],
+      cursor: { hour, index },
+    };
+    return chartHistory(this.store, snapshot, ticks, tf);
   }
   bars(tf: TF): Bar[] {
     const s = this.session;

@@ -104,10 +104,11 @@ export type Appearance = {
   labelOpacity: number;
   minimal: boolean;
   graphOrders: boolean;
+  orderColors?: { buy: string; sell: string; sl: string; tp: string };
   magnet: "off" | "weak" | "strong";
 };
 export const DEFAULT_APPEARANCE: Appearance = {
-  preset: "cyber",
+  preset: "accurate",
   panelOpacity: 96,
   zoneOpacity: 16,
   gridOpacity: 40,
@@ -163,8 +164,8 @@ export function appearanceShell(preset: Appearance["preset"]) {
 }
 export function orderColors(light: boolean) {
   return light
-    ? { buy: "#4B4B4B", sell: "#666666", sl: "#777777", tp: "#505050" }
-    : { buy: "#C1C1C1", sell: "#A2A2A2", sl: "#929292", tp: "#B9B9B9" };
+    ? { buy: "#167047", sell: "#a84b06", sl: "#b52f44", tp: "#087d76" }
+    : { buy: "#5dd995", sell: "#ff9b4a", sl: "#ff6f7f", tp: "#49d3c6" };
 }
 export function appearanceVariables(a: Appearance) {
   const p = PALETTES[a.preset];

@@ -158,8 +158,15 @@ test("chart compresses missing time without fake candles; drawings retain timest
   });
   assert.equal(restored.from, 1);
   assert.equal(restored.to, 3);
-  const anchored = initialChartRange([0, 60, 240], 60, {version: 3, from: 1, to: 4, fromTime: 60, toTime: 300});
-  assert.equal(anchored.from, 1); assert.equal(anchored.to, 3);
+  const anchored = initialChartRange([0, 60, 240], 60, {
+    version: 3,
+    from: 1,
+    to: 4,
+    fromTime: 60,
+    toTime: 300,
+  });
+  assert.equal(anchored.from, 0);
+  assert.equal(anchored.to, 4); // minimum four candles, same center
   const weekend = [bar(60), bar(60 + 2 * 86400)];
   assert.equal(chartTimeline(weekend, "1m").length, 2);
   assert.equal(chartBreaks(weekend, "1m")[0].missing, false);

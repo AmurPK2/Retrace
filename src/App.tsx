@@ -1,3 +1,10 @@
+import { ChallengePanel } from "./components/ChallengePanel";
+import { CHALLENGES } from "./core/challenges";
+import { FibEditor } from "./components/FibEditor";
+import { INSTRUMENTS, instrumentForDataset } from "./core/instruments";
+import { LearningHub } from "./components/LearningHub";
+import { DEFAULT_HTF } from "./core/htf";
+import { draftIssues, combinedPlanRisk } from "./core/order-validation";
 import {
   useEffect,
   useRef,
@@ -68,7 +75,6 @@ import { FormulaEditor } from "./components/FormulaEditor";
 import { TelegramPanel } from "./components/TelegramLivePanel";
 import { AssistantPanel } from "./components/AssistantPanel";
 import { WorkspaceHelp } from "./components/WorkspaceHelp";
-import { RRStudyPanel } from "./components/RRStudyPanel";
 import type { RRPlan, RRTimeframe } from "./core/rr-study";
 import { planLevels } from "./core/drawings";
 import { ToolIcon } from "./components/ToolIcon";
@@ -96,14 +102,24 @@ import {
   type Indicator,
   type TF,
 } from "./types";
-const money = (n: number) =>
+const formatMoney = (n: number, currency = "USD") =>
   new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: "USD",
+    currency,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(n);
+const money = (n: number) => formatMoney(n);
 const num = (n: number) => n.toFixed(3);
+const drawingNames: Record<string, string> = {
+  horizontal: "Nivå",
+  ray: "Stråle",
+  trend: "Trendlinje",
+  zone: "Sone",
+  fib: "Fibonacci",
+  long: "Kjøpsplan",
+  short: "Salgsplan",
+};
 const legacyDefaultText: Record<string, string> = {
   "Egen prishandling": "My price action",
   "Jeg har definert en tydelig ugyldiggjøring og SL.":
@@ -123,7 +139,7 @@ const stamp = (t: number, blind = false, zone = "Europe/Oslo") =>
     second: "2-digit",
   }).format(t);
 const aiLabels: Record<string, string> = {
-  off: "Off",
+  off: "Av",
   starting: "Starting",
   loading: "Loading",
   ready: "Ready",
@@ -147,6 +163,7 @@ function IconButton({
   return (
     <button
       className={"icon-button " + (active ? "active" : "")}
+      aria-pressed={active}
       title={title}
       aria-label={title}
       onClick={onClick}
@@ -175,6 +192,40 @@ function Modal({
   onClose: () => void;
   wide?: boolean;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const previous = document.activeElement as HTMLElement | null;
+    const dialog = dialogRef.current;
+    const focusable = () =>
+      Array.from(
+        dialog?.querySelectorAll<HTMLElement>(
+          'button:not(:disabled), input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]',
+        ) ?? [],
+      ).filter((el) => el.getClientRects().length > 0);
+    focusable()[0]?.focus();
+    const trap = (event: KeyboardEvent) => {
+      if (event.key !== "Tab") return;
+      const items = focusable(),
+        first = items[0],
+        last = items[items.length - 1];
+      if (!first) {
+        event.preventDefault();
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    dialog?.addEventListener("keydown", trap);
+    return () => {
+      dialog?.removeEventListener("keydown", trap);
+      previous?.focus();
+    };
+  }, []);
   return (
     <div
       className="modal-scrim"
@@ -183,6 +234,7 @@ function Modal({
       }}
     >
       <section
+        ref={dialogRef}
         className={"modal " + (wide ? "wide" : "")}
         role="dialog"
         aria-modal="true"
@@ -193,7 +245,7 @@ function Modal({
             <small>RETRACE</small>
             <h2>{title}</h2>
           </div>
-          <IconButton title="Close dialog" onClick={onClose}>
+          <IconButton title="Lukk dialog" onClick={onClose}>
             <X size={18} />
           </IconButton>
         </header>
@@ -213,7 +265,7 @@ export default function App() {
   const [picker, setPicker] = useState<OrderLevel | null>(null),
     [sidebar, setSidebar] = useState<"assistant" | "telegram" | "study">(() => {
       const saved = localStorage.getItem("replay.sidebarTab");
-      return saved === "telegram" || saved === "study" ? saved : "assistant";
+      return saved === "telegram" ? saved : "assistant";
     }),
     [showNotes, setShowNotes] = useState(false);
   const feedOpen = sidebar === "telegram";
@@ -222,6 +274,23 @@ export default function App() {
   const [studyPicking, setStudyPicking] = useState(false);
   const studyDraft = useRef<{ rangeId: string; value: RRPlan } | null>(null);
   const [previewActive, setPreviewActive] = useState(false);
+  const [ticketOpen, setTicketOpen] = useState(false);
+  const [setupId, setSetupId] = useState(() => crypto.randomUUID());
+  const [planId, setPlanId] = useState<string | undefined>();
+  const [objectsOpen, setObjectsOpen] = useState(false);
+  const [ledgerOpen, setLedgerOpen] = useState(
+    () => localStorage.getItem("retrace.ledgerOpen") === "true",
+  );
+  useEffect(
+    () => localStorage.setItem("retrace.ledgerOpen", String(ledgerOpen)),
+    [ledgerOpen],
+  );
+  const [chartMenu, setChartMenu] = useState<{
+    x: number;
+    y: number;
+    price: number;
+    time: number;
+  } | null>(null);
   const [sendingAI, setSendingAI] = useState(false);
   const [reviewTradeId, setReviewTradeId] = useState("auto");
   const [feedCount, setFeedCount] = useState(0);
@@ -337,7 +406,7 @@ export default function App() {
           setModal("");
           return;
         }
-        setPreviewActive(false);
+        setChartMenu(null);
         setStudyPicking(false);
         setTool("select");
         setSelected(null);
@@ -347,11 +416,11 @@ export default function App() {
       }
       if (
         (e.target as HTMLElement).closest(
-          'input,textarea,select,[contenteditable="true"]',
+          'input,textarea,select,[contenteditable="true"],video,[role="dialog"],[role="menu"]',
         )
       )
         return;
-      if (modal) return;
+      if (modal || chartMenu) return;
       if (e.key === "?") {
         e.preventDefault();
         setModal("help");
@@ -362,9 +431,13 @@ export default function App() {
         if ((e.target as HTMLElement).closest('button,[role="button"],summary'))
           return;
         e.preventDefault();
-        if (!e.repeat) act({ type: "play", value: !stateRef.current?.playing });
+        if (!e.repeat) act({ type: "step", kind: "candle" });
       }
-      if (e.key === "ArrowRight") {
+      if (e.code === "KeyP" && !e.ctrlKey && !e.altKey && !e.repeat) {
+        e.preventDefault();
+        act({ type: "play", value: !stateRef.current?.playing });
+      }
+      if (e.key === "ArrowRight" && !e.repeat) {
         e.preventDefault();
         act({ type: "step", kind: "candle" });
       }
@@ -387,8 +460,11 @@ export default function App() {
     };
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
-  }, [act, selected, modal]);
+  }, [act, selected, modal, chartMenu]);
   const session = state?.session;
+  const money = (n: number) =>
+    formatMoney(n, session?.broker.specs.currency ?? "USD");
+  const num = (n: number) => n.toFixed(session?.broker.specs.precision ?? 3);
   const previousStudyRange = useRef<{ session: string; range?: string } | null>(
     null,
   );
@@ -413,21 +489,39 @@ export default function App() {
     const next = { ...session.layout, ...patch };
     // Logical bar indexes belong to one timeframe. Reusing them after a
     // timeframe change can put nearly the entire chart in future whitespace.
-    if (patch.timeframe && patch.timeframe !== session.layout.timeframe)
-      delete next.range;
-    if (patch.second && patch.second !== session.layout.second)
+    if (patch.timeframe && patch.timeframe !== session.layout.timeframe) {
+      const visible = chart.current?.visibleWindow();
+      if (visible)
+        next.range = {
+          from: 0,
+          to: 1,
+          version: 3,
+          fromTime: visible.from,
+          toTime: visible.to,
+        };
+    }
+    if (
+      patch.second &&
+      patch.second !== session.layout.second &&
+      next.secondRange?.version !== 3
+    )
       delete next.secondRange;
     act({ type: "ui", value: { layout: next } });
   };
   const [tradeToLocate, setTradeToLocate] = useState<string | null>(null);
   useEffect(() => {
-    if (tradeToLocate && chart.current?.focusTrade(tradeToLocate)) setTradeToLocate(null);
+    if (tradeToLocate && chart.current?.focusTrade(tradeToLocate))
+      setTradeToLocate(null);
   }, [tradeToLocate, state?.bars, session?.layout.timeframe]);
   const locateTrade = (id: string) => {
     if (chart.current?.focusTrade(id)) return;
     if (session && session.layout.timeframe !== "1H") {
-      setTradeToLocate(id); layout({ timeframe: "1H" });
-    } else setError("This trade is outside loaded history. Its original Decision chart is still available in History.");
+      setTradeToLocate(id);
+      layout({ timeframe: "1H" });
+    } else
+      setError(
+        "This trade is outside loaded history. Its original Decision chart is still available in History.",
+      );
   };
   const [marketSide, setMarketSide] = useState<"buy" | "sell">("buy"),
     [kind, setKind] = useState<"market" | "limit">("limit"),
@@ -470,8 +564,39 @@ export default function App() {
       ? Math.abs(entryPrice - Number(sl)) *
           effectiveLots *
           session.broker.specs.contract +
-        effectiveLots * session.broker.specs.commission * 2
+        effectiveLots *
+          (session.broker.specs.commission +
+            session.broker.specs.slippage * session.broker.specs.contract) *
+          2
       : null;
+  const setupEntries = session
+    ? [...session.broker.pending, ...session.broker.positions]
+        .filter((p) => p.setupId === setupId)
+        .map((p) => ({
+          id: p.id,
+          entry: "entry" in p ? Number(p.entry) : p.price!,
+          sl: p.sl,
+          lots: p.lots,
+        }))
+    : [];
+  const setupRisk = session
+    ? combinedPlanRisk(
+        [
+          ...setupEntries,
+          ...(previewActive
+            ? [
+                {
+                  id: "draft",
+                  entry: entryPrice,
+                  sl: sl ? Number(sl) : undefined,
+                  lots: effectiveLots,
+                },
+              ]
+            : []),
+        ],
+        session.broker.specs,
+      )
+    : null;
   const reward =
     session && tp
       ? Math.abs(Number(tp) - entryPrice) *
@@ -485,6 +610,19 @@ export default function App() {
         session.broker.specs,
       )
     : 0;
+  const issues = session
+    ? draftIssues(
+        {
+          side,
+          kind,
+          entry: entryPrice,
+          sl: sl ? Number(sl) : undefined,
+          tp: tp ? Number(tp) : undefined,
+          lots: effectiveLots,
+        },
+        session.broker.specs,
+      )
+    : [];
   const order = async () => {
     if (!session) return;
     setBusy(true);
@@ -521,6 +659,8 @@ export default function App() {
           side: execution.side,
           kind: execution.kind,
           automaticLevel: kind !== "market",
+          setupId,
+          planId,
           lots: effectiveLots,
           price: kind === "market" ? undefined : Number(entry),
           sl: execution.sl,
@@ -542,34 +682,43 @@ export default function App() {
       setBusy(false);
     }
   };
-  const ask = async () => {
-    if (!session || !draft.trim() || sendingAI) return;
+  const ask = async (
+    request?: string,
+    modeOverride?: string,
+    targetOverride?: string,
+  ) => {
+    const question = request ?? draft;
+    if (!session || !question.trim() || sendingAI) return;
     setSendingAI(true);
     try {
       await call({ type: "play", value: false });
       await call({ type: "flush", value: { draft, thesis, tags } });
       const snapshot = (await call({ type: "state" })) as AppState;
       await new Promise<void>((r) =>
-          requestAnimationFrame(() => requestAnimationFrame(() => r())),
-        );
+        requestAnimationFrame(() => requestAnimationFrame(() => r())),
+      );
       await call({
         type: "ai.ask",
-        text: `${chatMode}: ${draft}`,
+        text: (modeOverride ?? chatMode) + ": " + question,
         cursor: chart.current?.cursor(),
         screenshot: await chart.current?.capture(),
-        tradeId: reviewTradeId,
+        tradeId: targetOverride ?? reviewTradeId,
         visibleWindow: chart.current?.visibleWindow(),
-        proposal: previewActive ? {
-          side,
-          kind,
-          entry: entryPrice,
-          sl: sl ? Number(sl) : null,
-          tp: tp ? Number(tp) : null,
-          lots: effectiveLots,
-          cashRisk: plannedRisk,
-          rr: plannedRisk && reward ? reward / plannedRisk : null,
-          margin: requiredMargin,
-        } : undefined,
+        proposal: previewActive
+          ? {
+              side,
+              kind,
+              planId,
+              setupId,
+              entry: entryPrice,
+              sl: sl ? Number(sl) : null,
+              tp: tp ? Number(tp) : null,
+              lots: effectiveLots,
+              cashRisk: plannedRisk,
+              rr: plannedRisk && reward ? reward / plannedRisk : null,
+              margin: requiredMargin,
+            }
+          : undefined,
       });
       setDraft("");
     } catch {
@@ -578,32 +727,31 @@ export default function App() {
     }
   };
   const selectedDrawing = session?.drawings.find((d) => d.id === selected);
-  const newOrderDraft = async () => {
+  const newOrderDraft = async (price?: number) => {
     if (!session) return;
     try {
       await call({ type: "play", value: false });
       const fresh = await call({ type: "state" });
       setKind("limit");
-      setEntry(num(fresh.quote.bid));
+      setSetupId(crypto.randomUUID());
+      setPlanId(undefined);
+      setLots(String(Math.max(Number(lots) || 0, session.broker.specs.minLot)));
+      setEntry(num(price ?? fresh.quote.bid));
+      setTicketOpen(true);
+      setChartMenu(null);
       setSL("");
       setTP("");
       setPreviewActive(true);
       setSelected(null);
       setTool("select");
       setPicker(null);
-      chart.current?.current();
       if (!look.graphOrders)
         act({ type: "appearance", value: { ...look, graphOrders: true } });
     } catch {}
   };
   const changeDrawing = (patch: Partial<Drawing>) => {
     if (session && selectedDrawing)
-      act({
-        type: "drawings",
-        value: session.drawings.map((d) =>
-          d.id === selected ? { ...d, ...patch } : d,
-        ),
-      });
+      act({ type: "drawing.patch", id: selectedDrawing.id, patch });
   };
   const cancelDraft = () => {
     setPreviewActive(false);
@@ -616,6 +764,7 @@ export default function App() {
   const usePlan = () => {
     if (!selectedDrawing || !session) return;
     const d = selectedDrawing;
+    setPlanId(d.id);
     const level = resolveLevelDraft(
       {
         side: d.kind === "short" ? "sell" : "buy",
@@ -636,6 +785,7 @@ export default function App() {
     setTool("select");
     setSelected(null);
     setPreviewActive(true);
+    setTicketOpen(true);
   };
   const changeEntry = (price: number, text = num(price)) => {
     if (!session) return;
@@ -662,66 +812,82 @@ export default function App() {
   if (!state)
     return (
       <div className="boot">
-        <img className="brand-mark retrace-brand" src={retraceIcon} alt="RETRACE RT" />
-        <h2>Opening your workspace</h2>
-        <p>{error || "Reading your last saved checkpoint …"}</p>
+        <img
+          className="brand-mark retrace-brand"
+          src={retraceIcon}
+          alt="RETRACE RT"
+        />
+        <h2>Åpner arbeidsområdet</h2>
+        <p>{error || "Leser siste lagringspunkt …"}</p>
       </div>
     );
   const stats = session ? statistics(session.broker.fills) : null;
   const toolbar: [Tool, string, ReactNode][] = [
-    ["select", "Select and move · Esc", <ToolIcon kind="select" />],
-    ["horizontal", "Horizontal line", <ToolIcon kind="horizontal" />],
-    ["ray", "Ray · choose two points · Shift locks an axis", <ToolIcon kind="ray" />],
-    ["trend", "Trend line · hold Shift to lock an axis", <ToolIcon kind="trend" />],
-    ["zone", "Rectangle · click and drag", <ToolIcon kind="zone" />],
-    ["fib", "Fibonacci · click and drag", <ToolIcon kind="fib" />],
-    ["long", "Long position · buy plan", <ToolIcon kind="long" />],
-    ["short", "Short position · sell plan", <ToolIcon kind="short" />],
+    ["select", "Velg og flytt · Esc", <ToolIcon kind="select" />],
+    ["horizontal", "Vannrett linje", <ToolIcon kind="horizontal" />],
+    [
+      "ray",
+      "Ray · choose two points · Shift locks an axis",
+      <ToolIcon kind="ray" />,
+    ],
+    ["trend", "Trendlinje · Shift låser retningen", <ToolIcon kind="trend" />],
+    ["zone", "Sone · klikk og dra", <ToolIcon kind="zone" />],
+    ["fib", "Fibonacci · klikk og dra", <ToolIcon kind="fib" />],
+    ["long", "Kjøpsplan · inngang, SL og TP", <ToolIcon kind="long" />],
+    ["short", "Salgsplan · inngang, SL og TP", <ToolIcon kind="short" />],
   ];
   return (
     <div
-      className={`app themed ${look.minimal ? "minimal" : ""} ${showNotes ? "notes-open" : ""}`}
+      className={`app themed ${ledgerOpen ? "ledger-open" : "ledger-collapsed"} ${look.minimal ? "minimal" : ""} ${showNotes ? "notes-open" : ""}`}
       data-preset={look.preset}
       style={appearanceVariables(look) as CSSProperties}
     >
       <header className="topbar">
         <div className="brand">
-          <img className="brand-mark retrace-brand" src={retraceIcon} alt="RETRACE RT" />
+          <img
+            className="brand-mark retrace-brand"
+            src={retraceIcon}
+            alt="RETRACE RT"
+          />
           <div>
-            <b>
-              RETRACE
-            </b>
-            <small>YOUR TRADING DESK</small>
+            <b>RETRACE</b>
+            <small>TREN. FORSTÅ. GJENTA.</small>
           </div>
         </div>
         <div className="top-divider" />
         <button className="session-switch" onClick={() => setModal("sessions")}>
           <span className="status-dot" />
-          {session?.name ?? "Select a session"}
+          {session?.name ?? "Velg økt"}
           <ChevronDown size={14} />
         </button>
-        <span className="paper-badge">PAPER · $500 / 1:500</span>
+        <span className="paper-badge">
+          REPLAY · {session?.broker.specs.currency ?? "USD"} · 1:
+          {session?.broker.specs.leverage ?? 500}
+        </span>
         <div className="top-actions">
           <button className="quiet" onClick={() => setModal("data")}>
             <Database size={15} />
             <span>
-              {state.coverage.hours.toLocaleString("en-GB")} data hours
+              {state.coverage.hours.toLocaleString("en-GB")} timer med data
             </span>
             {state.coverage.importer.running && (
               <span className="mini-spinner" />
             )}
           </button>
           <IconButton
-            title="Strategy notebook"
+            title="Strateginotatbok"
             onClick={() => setModal("notebook")}
           >
             <BookOpen size={18} />
           </IconButton>
-          <IconButton title="Settings" onClick={() => setModal("settings")}>
+          <IconButton
+            title="Innstillinger"
+            onClick={() => setModal("settings")}
+          >
             <Settings size={18} />
           </IconButton>
           <IconButton
-            title="Exit app"
+            title="Avslutt appen"
             onClick={() => act({ type: "app.exit" })}
           >
             <LogOut size={17} />
@@ -730,10 +896,42 @@ export default function App() {
       </header>
       <div className="account-strip">
         <div className="instrument">
-          <span className="gold-icon">Au</span>
+          <select
+            className="instrument-picker"
+            aria-label="Instrument"
+            value={session ? instrumentForDataset(session.dataset) : ""}
+            onChange={(e) => {
+              cancelDraft();
+              setSelected(null);
+              setTicketOpen(false);
+              act({ type: "instrument", value: e.target.value });
+            }}
+          >
+            <option disabled value="">
+              Velg instrument
+            </option>
+            {Object.entries(INSTRUMENTS).map(([id, i]) => (
+              <option key={id} value={id} disabled={!i.available}>
+                {id}
+                {!i.available ? " · licensed data required" : ""}
+              </option>
+            ))}
+          </select>
           <div>
-            <b>Gold / US Dollar</b>
-            <small>XAUUSD · USD per troy ounce</small>
+            <b>
+              {session
+                ? INSTRUMENTS[instrumentForDataset(session.dataset)].name
+                : "Gold / US Dollar"}
+            </b>
+            <small>
+              {session
+                ? instrumentForDataset(session.dataset) +
+                  " · " +
+                  (session.broker.specs.currency ?? "USD") +
+                  " konto · " +
+                  INSTRUMENTS[instrumentForDataset(session.dataset)].unit
+                : "XAUUSD"}
+            </small>
           </div>
         </div>
         <div className="quote">
@@ -750,21 +948,21 @@ export default function App() {
         </div>
         <div className="strip-divider" />
         <div className="metric">
-          <span>Balance</span>
+          <span>Saldo</span>
           <b>{a ? money(a.balance) : "$500,00"}</b>
         </div>
         <div className="metric">
-          <span>Equity</span>
+          <span>Egenkapital</span>
           <b>{a ? money(a.equity) : "$500,00"}</b>
         </div>
         <div className="metric">
-          <span>Floating P/L</span>
+          <span>Urealisert P/L</span>
           <b className={(a?.floating ?? 0) >= 0 ? "green" : "red"}>
             {a ? money(a.floating) : "—"}
           </b>
         </div>
         <div className="metric">
-          <span>Used / free margin</span>
+          <span>Brukt / ledig margin</span>
           <b>{a ? `${money(a.usedMargin)} / ${money(a.freeMargin)}` : "—"}</b>
         </div>
       </div>
@@ -806,14 +1004,14 @@ export default function App() {
             <ToolIcon kind="magnet" />
           </IconButton>
           <IconButton
-            title="Undo drawing (Ctrl+Z)"
+            title="Angre tegning (Ctrl+Z)"
             onClick={() => act({ type: "drawing.undo" })}
             disabled={!session?.undo.length}
           >
             <Undo2 size={17} />
           </IconButton>
           <IconButton
-            title="Redo drawing (Ctrl+Y / Ctrl+Shift+Z)"
+            title="Gjør om tegning (Ctrl+Y / Ctrl+Shift+Z)"
             onClick={() => act({ type: "drawing.redo" })}
             disabled={!session?.redo.length}
           >
@@ -821,7 +1019,7 @@ export default function App() {
           </IconButton>
           <div className="toolbar-bottom">
             <IconButton
-              title="Chart tools and shortcuts (?)"
+              title="Verktøy og snarveier (?)"
               onClick={() => {
                 setModal("help");
                 if (state.playing) act({ type: "play", value: false });
@@ -830,7 +1028,7 @@ export default function App() {
               <CircleHelp size={17} />
             </IconButton>
             <IconButton
-              title="Go to replay point"
+              title="Vis replay-punktet"
               onClick={() => chart.current?.current()}
             >
               <Crosshair size={18} />
@@ -853,81 +1051,304 @@ export default function App() {
             </div>
             <div className="chart-control-actions">
               <button
+                className="toolbar-button coach-toggle"
+                aria-pressed={!!session?.layout.ai && sidebar === "assistant"}
+                disabled={!session}
+                onClick={() => {
+                  setSidebar("assistant");
+                  layout({
+                    ai: !(session?.layout.ai && sidebar === "assistant"),
+                  });
+                }}
+              >
+                <MessageSquare size={14} /> Coach
+              </button>
+              <button
+                aria-label="Ny ordre"
                 className="new-draft-button"
                 disabled={!session}
                 onClick={() => void newOrderDraft()}
-                title="Make order · drag above price for Sell level and below for Buy level. Direction is automatic."
+                title="Lag et utkast. Du kan også høyreklikke på en pris i charten."
               >
-                Make order
+                <span>+</span> Ny ordre
               </button>
               <button
-                className={"telegram-toggle " + (feedOpen ? "active" : "")}
-                title="Telegram feed"
-                onClick={() => {
-                  setFeedOpen(!feedOpen);
-                  if (!session?.layout.ai) layout({ ai: true });
-                }}
-              >
-                <Send size={14} />
-                Telegram
-                {feedCount > 0 && (
-                  <small className="feed-count">
-                    {Math.min(99, feedCount)}
-                  </small>
-                )}
-              </button>
-              <button
-                className={
-                  "study-toggle " + (sidebar === "study" ? "active" : "")
+                className="toolbar-button"
+                aria-pressed={session?.layout.htf?.enabled ?? true}
+                title="Vis én pågående 4-timers candle på chartets prisskala"
+                onClick={() =>
+                  layout({
+                    htf: {
+                      ...DEFAULT_HTF,
+                      ...session?.layout.htf,
+                      enabled: !(session?.layout.htf?.enabled ?? true),
+                    },
+                  })
                 }
-                disabled={!session}
-                title="RR Study · source-linked lessons and replay exercises"
+              >
+                4H-candle
+              </button>
+              <button
+                className="toolbar-button challenge-entry"
+                title="Én læringssti med ti trinn, guider og bevarte forsøk"
                 onClick={() => {
-                  setSidebar("study");
-                  if (!session?.layout.ai) layout({ ai: true });
-                  if (state.playing) act({ type: "play", value: false });
+                  setModal("challenge");
+                  act({ type: "play", value: false });
                 }}
               >
-                <BookOpen size={14} /> RR Study
+                <BookOpen size={14} /> Lær og øv
               </button>
               <button
-                className="quiet"
-                onClick={() => setModal("indicators")}
-                disabled={!session}
+                className="toolbar-button"
+                title="Finn, navngi, skjul eller lås tegningene dine"
+                onClick={() => setObjectsOpen(!objectsOpen)}
+                aria-pressed={objectsOpen}
               >
-                <Activity size={14} />
-                Indicators
+                Tegninger {session?.drawings.length ?? 0}
               </button>
-              <IconButton
-                title="Two synchronized charts"
-                active={session?.layout.dual}
-                onClick={() => layout({ dual: !session?.layout.dual })}
-                disabled={!session}
-              >
-                <Layers size={16} />
-              </IconButton>
-              <IconButton
-                title="Fit chart"
-                onClick={() => chart.current?.fit()}
-              >
-                <Maximize2 size={15} />
-              </IconButton>
-              <button
-                className="quiet"
-                title="Show all loaded past history. Use Fit chart to zoom back in."
-                onClick={() => chart.current?.overview()}
-                disabled={!session}
-              >
-                All history
-              </button>
-              {session && sessionTrades(session).length > 0 && <button className="toolbar-button" title="Show the latest trade's entry and exit arrows. Older trades: History → Show on chart." onClick={() => locateTrade(sessionTrades(session)[0].id)}>Trades {sessionTrades(session).length}</button>}
+              <details className="chart-more">
+                <summary title="Flere chartverktøy, leksjoner og hjelp">
+                  Mer <ChevronDown size={13} />
+                </summary>
+                <div
+                  role="menu"
+                  onClick={(e) => {
+                    const b = (e.target as Element).closest("button");
+                    if (b)
+                      e.currentTarget
+                        .closest("details")
+                        ?.removeAttribute("open");
+                  }}
+                >
+                  <button role="menuitem" onClick={() => setModal("help")}>
+                    Hva gjør knappene? <small>Forklaring og snarveier</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      layout({ timeframe: "4H" });
+                      setStudyPicking(true);
+                    }}
+                  >
+                    Velg C1/C2 <small>Pek ut candlene AI-en skal vurdere</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => setModal("indicators")}
+                  >
+                    Indikatorer{" "}
+                    <small>Legg til for eksempel EMA eller RSI</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => layout({ dual: !session?.layout.dual })}
+                  >
+                    To charts <small>Se to tidsrammer samtidig</small>
+                  </button>
+                  <button role="menuitem" onClick={() => chart.current?.fit()}>
+                    Tilpass chart{" "}
+                    <small>Tilbakestill zoom til replay-punktet</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => chart.current?.overview()}
+                  >
+                    Vis hele historikken{" "}
+                    <small>Zoom ut til alle lastede candles</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => setTicketOpen(!ticketOpen)}
+                  >
+                    Ordredetaljer <small>Åpne det kompakte ordrepanelet</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setFeedOpen(true);
+                      layout({ ai: true });
+                    }}
+                  >
+                    Telegram <small>Åpne dine egne kilder</small>
+                  </button>
+                  {session && sessionTrades(session).length > 0 && (
+                    <button
+                      role="menuitem"
+                      onClick={() => locateTrade(sessionTrades(session)[0].id)}
+                    >
+                      Vis siste trade{" "}
+                      <small>Finn inngang og utgang på charten</small>
+                    </button>
+                  )}
+                </div>
+              </details>
             </div>
           </div>
+          {(tool !== "select" || studyPicking) && (
+            <div className="tool-explainer" role="status">
+              <b>
+                {studyPicking
+                  ? "Velg C1"
+                  : toolbar.find((t) => t[0] === tool)?.[1]}
+              </b>
+              <span>
+                {studyPicking
+                  ? "Klikk på den første candlen. Neste ferdige candle blir C2."
+                  : tool === "horizontal"
+                    ? "Klikk én gang ved ønsket pris."
+                    : "Velg to punkter eller dra. Shift låser linjer vannrett/loddrett. Esc avslutter."}
+              </span>
+              <button
+                onClick={() => {
+                  setTool("select");
+                  setStudyPicking(false);
+                  setSelected(null);
+                }}
+              >
+                Avslutt
+              </button>
+            </div>
+          )}
+          {objectsOpen && session && (
+            <div className="object-list" aria-label="Tegningsobjekter">
+              <header>
+                Tegninger{" "}
+                <button
+                  aria-label="Lukk tegningslisten"
+                  onClick={() => setObjectsOpen(false)}
+                >
+                  ×
+                </button>
+              </header>
+              {session.drawings.map((d) => (
+                <div key={d.id} className={selected === d.id ? "selected" : ""}>
+                  <button
+                    onClick={() => setSelected(d.id)}
+                    title="Velg tegning"
+                  >
+                    {drawingNames[d.kind] ?? d.kind}
+                  </button>
+                  <input
+                    aria-label={"Navn " + d.id}
+                    defaultValue={d.label}
+                    placeholder="Navn"
+                    onBlur={(e) =>
+                      act({
+                        type: "drawing.patch",
+                        id: d.id,
+                        patch: { label: e.target.value },
+                      })
+                    }
+                  />
+                  <button
+                    aria-label={"Synlighet " + d.id}
+                    aria-pressed={!d.hidden}
+                    onClick={() =>
+                      act({
+                        type: "drawing.patch",
+                        id: d.id,
+                        patch: { hidden: !d.hidden },
+                      })
+                    }
+                  >
+                    {d.hidden ? "Vis" : "Skjul"}
+                  </button>
+                  <button
+                    aria-label={"Lås " + d.id}
+                    aria-pressed={d.locked}
+                    onClick={() =>
+                      act({
+                        type: "drawing.patch",
+                        id: d.id,
+                        patch: { locked: !d.locked },
+                      })
+                    }
+                  >
+                    {d.locked ? "Lås opp" : "Lås"}
+                  </button>
+                  <button
+                    aria-label={"Slett " + d.id}
+                    onClick={() => act({ type: "drawing.remove", id: d.id })}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {!session.drawings.length && (
+                <p>
+                  Velg et tegneverktøy og tegn i chartet for å legge til et
+                  objekt.
+                </p>
+              )}
+            </div>
+          )}
+          {chartMenu && (
+            <div
+              className="chart-context-menu"
+              role="menu"
+              style={{
+                left: Math.min(chartMenu.x, window.innerWidth - 240),
+                top: Math.min(chartMenu.y, window.innerHeight - 310),
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") setChartMenu(null);
+              }}
+            >
+              <b>{num(chartMenu.price)}</b>
+              <button
+                role="menuitem"
+                autoFocus
+                onClick={() => void newOrderDraft(chartMenu.price)}
+              >
+                New order draft here
+              </button>
+              {(
+                [
+                  "horizontal",
+                  "trend",
+                  "ray",
+                  "zone",
+                  "fib",
+                  "long",
+                  "short",
+                ] as Tool[]
+              ).map((t) => (
+                <button
+                  role="menuitem"
+                  key={t}
+                  onClick={() => {
+                    setTool(t);
+                    setChartMenu(null);
+                  }}
+                >
+                  {t === "fib" ? "Fibonacci" : t}
+                </button>
+              ))}
+              <button
+                role="menuitem"
+                onClick={() => {
+                  chart.current?.fit();
+                  setChartMenu(null);
+                }}
+              >
+                Tilpass chart
+              </button>
+              <button role="menuitem" onClick={() => setChartMenu(null)}>
+                Close menu
+              </button>
+            </div>
+          )}
           <div className={"chart-area " + (session?.layout.dual ? "dual" : "")}>
             {session ? (
               <>
                 <Chart
                   ref={chart}
+                  htfBars={state.htfBars ?? []}
+                  onHTFChange={(htf) => layout({ htf })}
+                  onLearnHTF={() => {
+                    setModal("learn4h");
+                    if (state.playing) act({ type: "play", value: false });
+                  }}
                   bars={state.bars}
                   appearance={look}
                   picker={picker}
@@ -942,25 +1363,37 @@ export default function App() {
                       .then(() => setStudyPicking(false))
                       .catch(() => {});
                   }}
+                  onContext={setChartMenu}
+                  onDraftLots={(value) => {
+                    setRiskMode("lots");
+                    setLots(String(value));
+                  }}
                   planLots={effectiveLots || 0.01}
                   onCancelDraft={cancelDraft}
                   onCancelPending={(id) => act({ type: "pending.cancel", id })}
                   onPendingEdit={(id, changes) => {
-                    const pending = session.broker.pending.find(
-                      (p) => p.id === id,
-                    );
-                    if (pending)
-                      act({
-                        type: "pending.edit",
+                    void (async () => {
+                      await call({ type: "pending.edit", id, changes });
+                      const updated = (await call({
+                        type: "state",
+                      })) as AppState;
+                      const pending = updated.session?.broker.pending.find(
+                        (p) => p.id === id,
+                      );
+                      if (!pending) return;
+                      await new Promise<void>((r) =>
+                        requestAnimationFrame(() =>
+                          requestAnimationFrame(() => r()),
+                        ),
+                      );
+                      await call({
+                        type: "pending.snapshot",
                         id,
-                        changes: {
-                          price: pending.price,
-                          lots: pending.lots,
-                          sl: pending.sl,
-                          tp: pending.tp,
-                          ...changes,
-                        },
+                        revision: pending.revisions?.length,
+                        cursor: chart.current?.cursor(),
+                        screenshot: await chart.current?.capture(),
                       });
+                    })().catch(() => {});
                   }}
                   orderDraft={
                     previewActive &&
@@ -1051,30 +1484,62 @@ export default function App() {
                     setModal(state.coverage.hours ? "sessions" : "data")
                   }
                 >
-                  {state.coverage.importer.running ? "Preparing real chart data…" : state.coverage.hours ? "Select practice session" : "Download history"}
+                  {state.coverage.importer.running
+                    ? "Preparing real chart data…"
+                    : state.coverage.hours
+                      ? "Select practice session"
+                      : "Download history"}
                   <ChevronRight size={16} />
                 </button>
-                <p className="micro">{state.coverage.importer.running ? "First setup downloads a small real-tick starter period automatically. AI prepares separately in the sidebar." : state.coverage.importer.error ? "Data setup was interrupted. Open Data hours to retry or import your own prices." : "No broker connection · Simulated orders only"}</p>
+                <p className="micro">
+                  {state.coverage.importer.running
+                    ? "First setup downloads a small real-tick starter period automatically. AI prepares separately in the sidebar."
+                    : state.coverage.importer.error
+                      ? "Data setup was interrupted. Open Data hours to retry or import your own prices."
+                      : "No broker connection · Simulated orders only"}
+                </p>
               </div>
             )}
           </div>
+          {(modal === "challenge" || modal === "learn4h") && (
+            <Modal wide title="Lær og øv" onClose={() => setModal("")}>
+              <LearningHub
+                state={state}
+                initial={modal === "challenge" ? "challenges" : "4h"}
+                call={call}
+                showChart={(timeframe) => {
+                  layout({
+                    timeframe,
+                    htf: {
+                      ...DEFAULT_HTF,
+                      ...session?.layout.htf,
+                      enabled: true,
+                      count: 1,
+                      timeframe: "4H",
+                    },
+                  });
+                  setModal("");
+                }}
+              />
+            </Modal>
+          )}
           {selectedDrawing && (
             <div className="selection-bar">
-              <span>{selectedDrawing.kind} · selected</span>
+              <span>{drawingNames[selectedDrawing.kind]} · valgt</span>
               <input
                 aria-label="Drawing name"
-                placeholder="Label"
+                placeholder="Navn på tegning"
                 value={selectedDrawing.label}
                 onChange={(e) => changeDrawing({ label: e.target.value })}
               />
               <input
                 type="color"
-                aria-label="Drawing color"
+                aria-label="Tegningsfarge"
                 value={selectedDrawing.color}
                 onChange={(e) => changeDrawing({ color: e.target.value })}
               />
               <IconButton
-                title={selectedDrawing.locked ? "Unlock" : "Lock drawing"}
+                title={selectedDrawing.locked ? "Lås opp" : "Lås tegning"}
                 onClick={() =>
                   changeDrawing({ locked: !selectedDrawing.locked })
                 }
@@ -1086,7 +1551,7 @@ export default function App() {
                 )}
               </IconButton>
               <IconButton
-                title="Duplicate drawing"
+                title="Dupliser tegning"
                 onClick={() =>
                   act({
                     type: "drawings",
@@ -1115,7 +1580,7 @@ export default function App() {
                 <Copy size={14} />
               </IconButton>
               <IconButton
-                title="Delete selected drawing"
+                title="Slett valgt tegning"
                 onClick={() => {
                   act({
                     type: "drawings",
@@ -1128,7 +1593,7 @@ export default function App() {
               </IconButton>
               {selectedDrawing.kind === "fib" && (
                 <button className="quiet" onClick={() => setModal("fib")}>
-                  Edit levels
+                  Rediger nivåer
                 </button>
               )}
               {["long", "short"].includes(selectedDrawing.kind) && (
@@ -1164,7 +1629,11 @@ export default function App() {
                           min="0.001"
                           step={key === "rr" ? 0.1 : 0.001}
                           defaultValue={Number(
-                            value.toFixed(key === "rr" ? 2 : 3),
+                            value.toFixed(
+                              key === "rr"
+                                ? 2
+                                : session!.broker.specs.precision,
+                            ),
                           )}
                           onKeyDown={(e) => {
                             if (e.key === "Enter") e.currentTarget.blur();
@@ -1193,7 +1662,7 @@ export default function App() {
                     ))}
                   </div>
                   <button className="quiet" onClick={usePlan}>
-                    Use in order
+                    Bruk i ordreutkast
                   </button>
                 </>
               )}
@@ -1202,7 +1671,8 @@ export default function App() {
           <div className="replay-bar">
             <button
               className={"play-button " + (state.playing ? "playing" : "")}
-              aria-label={state.playing ? "Pause replay" : "Play replay"}
+              title={state.playing ? "Pause replay (P)" : "Spill av replay (P)"}
+              aria-label={state.playing ? "Pause replay" : "Spill av replay"}
               onClick={() => act({ type: "play", value: !state.playing })}
               disabled={!session}
             >
@@ -1212,16 +1682,17 @@ export default function App() {
                 <Play size={16} fill="currentColor" />
               )}
             </button>
-            <IconButton
-              title="Next candle (right arrow)"
+            <button
+              className="step-candle"
+              title="Neste candle (Space / høyrepil)"
               onClick={() => act({ type: "step", kind: "candle" })}
               disabled={!session}
             >
-              <SkipForward size={17} />
-            </IconButton>
+              <SkipForward size={17} /> Neste candle
+            </button>
             <button
               className="tick-step"
-              title="Next real tick"
+              title="Neste pristick"
               onClick={() => act({ type: "step", kind: "tick" })}
               disabled={!session}
             >
@@ -1246,8 +1717,8 @@ export default function App() {
                     session.layout.blind,
                     session.layout.timezone,
                   )
-                : "Select historical time"}
-              <span>{session ? "Replay time" : "Paused"}</span>
+                : "Velg historisk tidspunkt"}
+              <span>{session ? "Replay-tid" : "Pauset"}</span>
             </div>
             <button
               className={
@@ -1256,7 +1727,7 @@ export default function App() {
               onClick={() => layout({ blind: !session?.layout.blind })}
               disabled={!session}
             >
-              Blind mode {session?.layout.blind ? "on" : "off"}
+              Skjul dato {session?.layout.blind ? "på" : "av"}
             </button>
           </div>
           <div
@@ -1299,15 +1770,15 @@ export default function App() {
           >
             {a && (
               <div className="paper-summary">
-                <b>Paper Trading</b>
+                <b>Treningskonto</b>
                 <span>
-                  Balance <strong>{money(session!.broker.balance)}</strong>
+                  Saldo <strong>{money(session!.broker.balance)}</strong>
                 </span>
                 <span>
-                  Equity <strong>{money(a.equity)}</strong>
+                  Egenkapital <strong>{money(a.equity)}</strong>
                 </span>
                 <span>
-                  Floating P/L{" "}
+                  Urealisert P/L{" "}
                   <strong className={a.floating >= 0 ? "green" : "red"}>
                     {money(a.floating)}
                   </strong>
@@ -1316,33 +1787,52 @@ export default function App() {
                   Margin <strong>{money(a.usedMargin)}</strong>
                 </span>
                 <span>
-                  Free margin <strong>{money(a.freeMargin)}</strong>
+                  Ledig margin <strong>{money(a.freeMargin)}</strong>
                 </span>
               </div>
             )}
             <div className="tabs">
               {[
-                ["positions", "Positions", session?.broker.positions.length],
-                ["pending", "Orders", session?.broker.pending.length],
-                ["history", "History", session?.broker.fills.length],
+                ["positions", "Posisjoner", session?.broker.positions.length],
+                ["pending", "Ordre", session?.broker.pending.length],
+                ["history", "Historikk", session?.broker.fills.length],
                 ["journal", "Journal", session?.notes.length],
-                ["stats", "Statistics", null],
-                ["account", "Account", null],
+                ["stats", "Statistikk", null],
+                ["account", "Konto", null],
               ].map(([key, label, count]) => (
                 <button
                   key={key}
-                  onClick={() => setTab(String(key))}
+                  onClick={() => {
+                    setTab(String(key));
+                    setLedgerOpen(true);
+                  }}
+                  aria-pressed={tab === key && ledgerOpen}
                   className={tab === key ? "active" : ""}
                 >
                   {label}
                   {count !== null && <span>{count ?? 0}</span>}
                 </button>
               ))}
-              <span className="hedge-label">PAPER TRADING</span>
+              <button
+                className="ledger-toggle"
+                aria-expanded={ledgerOpen}
+                onClick={() => setLedgerOpen(!ledgerOpen)}
+                title={
+                  ledgerOpen
+                    ? "Skjul detaljer og gi chartet mer plass"
+                    : "Vis posisjoner og historikk"
+                }
+              >
+                <ChevronDown
+                  size={14}
+                  style={{ transform: ledgerOpen ? "none" : "rotate(180deg)" }}
+                />
+                {ledgerOpen ? "Skjul detaljer" : "Vis detaljer"}
+              </button>
             </div>
             {!session ? (
               <div className="empty-small">
-                A new session starts with $500 in virtual funds.
+                En ny økt starter med $500 i virtuelle penger.
               </div>
             ) : (
               <Bottom
@@ -1357,7 +1847,9 @@ export default function App() {
                 reviewTrade={(id) => {
                   setReviewTradeId(id);
                   setChatMode("Review trade");
-                  setDraft("Was this trade a valid setup? Answer directly using the chart at my decision.");
+                  setDraft(
+                    "Was this trade a valid setup? Answer directly using the chart at my decision.",
+                  );
                   setSidebar("assistant");
                   layout({ ai: true });
                 }}
@@ -1365,349 +1857,191 @@ export default function App() {
             )}
           </section>
         </section>
-        <aside
-          className="order-panel"
-          style={{ width: session?.layout.right ?? 290 }}
-        >
-          <div className="panel-title">
-            <span>NEW ORDER</span>
-            <span className="muted">Paper Trading</span>
-          </div>
-          <div className="side-switch">
-            <button
-              className={side === "buy" ? "buy active" : "buy"}
-              disabled={kind !== "market"}
-              title={
-                kind === "market"
-                  ? "Buy at the current ask price"
-                  : "Direction follows the entry level automatically"
-              }
-              onClick={() => {
-                setMarketSide("buy");
-                setPreviewActive(true);
-              }}
-            >
-              <span>
-                BUY <small>ASK</small>
-              </span>
-              <b>{num(session?.tick.ask ?? 0)}</b>
-            </button>
-            <button
-              className={side === "sell" ? "sell active" : "sell"}
-              disabled={kind !== "market"}
-              title={
-                kind === "market"
-                  ? "Sell at the current bid price"
-                  : "Direction follows the entry level automatically"
-              }
-              onClick={() => {
-                setMarketSide("sell");
-                setPreviewActive(true);
-              }}
-            >
-              <span>
-                SELL <small>BID</small>
-              </span>
-              <b>{num(session?.tick.bid ?? 0)}</b>
-            </button>
-          </div>
-          <div
-            className={`order-fields ${look.graphOrders ? "graph-ticket" : ""}`}
+        {ticketOpen && session && (
+          <aside
+            className="order-panel compact-ticket"
+            onPointerDown={(e) => e.stopPropagation()}
           >
-            {kind !== "market" && previewActive && (
-              <div className="auto-limit-note">
-                {levelLabel(side)}
-                <small>Drag entry · above price = sell, below = buy</small>
-              </div>
-            )}
-            <div className="placement-mode">
+            <header>
+              <b>{previewActive ? "Ordreutkast" : "Ny ordre"}</b>
               <button
-                className={!look.graphOrders ? "selected" : ""}
-                onClick={() => {
-                  setPicker(null);
-                  act({
-                    type: "appearance",
-                    value: { ...look, graphOrders: false },
-                  });
-                }}
+                aria-label="Skjul ordredetaljer"
+                onClick={() => setTicketOpen(false)}
               >
-                Numbers
+                ×
               </button>
-              <button
-                className={look.graphOrders ? "selected" : ""}
-                onClick={() =>
-                  act({
-                    type: "appearance",
-                    value: { ...look, graphOrders: true },
-                  })
-                }
-              >
-                On chart
-              </button>
-            </div>
-            {look.graphOrders && (
-              <div className="level-pickers">
-                {(["entry", "sl", "tp"] as const).map((role) => (
-                  <button
-                    key={role}
-                    disabled={
-                      (role === "entry" && kind === "market") ||
-                      (kind !== "market" && !previewActive)
-                    }
-                    className={
-                      (
-                        role === "entry"
-                          ? picker === role
-                          : !!(role === "sl" ? sl : tp)
-                      )
-                        ? "selected"
-                        : ""
-                    }
-                    title={
-                      role === "entry"
-                        ? "Select an entry price on the chart"
-                        : `${role === "sl" ? (sl ? "Remove" : "Add") : tp ? "Remove" : "Add"} ${role.toUpperCase()} · drag the line to your price`
-                    }
-                    aria-pressed={
-                      role === "entry"
-                        ? picker === role
-                        : !!(role === "sl" ? sl : tp)
-                    }
-                    onClick={() => {
-                      setPreviewActive(true);
-                      if (role === "entry") {
-                        setPicker(picker === role ? null : role);
-                        return;
-                      }
-                      const existing = role === "sl" ? sl : tp;
-                      const value = existing
-                        ? ""
-                        : num(
-                            chart.current?.proposedLevel(
-                              entryPrice,
-                              side,
-                              role,
-                            ) ?? entryPrice,
-                          );
-                      if (role === "sl") setSL(value);
-                      else setTP(value);
-                      setPicker(null);
-                    }}
-                  >
-                    <Crosshair size={12} />
-                    {role === "entry" ? "Entry" : role.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            )}
-            {picker && (
-              <p className="picker-hint">
-                Click a price for {picker.toUpperCase()}{" "}
-                <button onClick={() => setPicker(null)}>×</button>
-              </p>
-            )}
-            <Field label="Order type">
-              <select
-                value={kind === "market" ? "market" : "level"}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setPicker(null);
-                  if (value === "market") {
-                    setKind("market");
-                    setPreviewActive(false);
-                    setSL("");
-                    setTP("");
-                  } else void newOrderDraft();
-                }}
-              >
-                <option value="level">Level · automatic Buy / Sell</option>
-                <option value="market">Market execution</option>
-              </select>
-            </Field>
-            {kind !== "market" && (
-              <Field label="Entry price">
-                <input
-                  type="number"
-                  step=".001"
-                  value={entry}
-                  onFocus={() => setPreviewActive(true)}
+            </header>
+            <div className="ticket-grid">
+              <label>
+                Ordretype
+                <select
+                  aria-label="Ordretype"
+                  value={kind}
                   onChange={(e) => {
-                    const value = Number(e.target.value);
-                    if (e.target.value && Number.isFinite(value) && value > 0)
-                      changeEntry(value, e.target.value);
-                    else setEntry(e.target.value);
+                    setKind(e.target.value as any);
+                    setPreviewActive(true);
                   }}
-                  placeholder="USD / oz"
+                >
+                  <option value="limit">Prisnivå</option>
+                  <option value="market">Markedsordre</option>
+                </select>
+              </label>
+              <label>
+                Retning
+                {kind === "market" ? (
+                  <select
+                    aria-label="Retning"
+                    value={marketSide}
+                    onChange={(e) => setMarketSide(e.target.value as any)}
+                  >
+                    <option value="buy">BUY</option>
+                    <option value="sell">SELL</option>
+                  </select>
+                ) : (
+                  <b className={side}>{side.toUpperCase()}</b>
+                )}
+              </label>
+              <label>
+                ENTRY
+                <input
+                  aria-label="Inngangspris"
+                  type="number"
+                  step={session.broker.specs.tickSize ?? 0.001}
+                  value={kind === "market" ? entryPrice : entry}
+                  disabled={kind === "market"}
+                  onChange={(e) => {
+                    setEntry(e.target.value);
+                    setPreviewActive(true);
+                  }}
                 />
-              </Field>
-            )}
-            <div className="field-row">
-              <Field label="Size by">
+              </label>
+              <label>
+                {session.broker.specs.unit ?? "Lots"}
+                <input
+                  aria-label="Ordrestørrelse"
+                  type="number"
+                  min={session.broker.specs.minLot}
+                  step={session.broker.specs.lotStep}
+                  value={lots}
+                  onChange={(e) => {
+                    setLots(e.target.value);
+                    setRiskMode("lots");
+                  }}
+                />
+              </label>
+              <label>
+                SL
+                <input
+                  aria-label="Stop loss"
+                  type="number"
+                  step={session.broker.specs.tickSize ?? 0.001}
+                  value={sl}
+                  placeholder="Valgfritt"
+                  onChange={(e) => {
+                    setSL(e.target.value);
+                    setPreviewActive(true);
+                  }}
+                />
+              </label>
+              <label>
+                TP
+                <input
+                  aria-label="Take profit"
+                  type="number"
+                  step={session.broker.specs.tickSize ?? 0.001}
+                  value={tp}
+                  placeholder="Valgfritt"
+                  onChange={(e) => {
+                    setTP(e.target.value);
+                    setPreviewActive(true);
+                  }}
+                />
+              </label>
+            </div>
+            <p className="ticket-risk">
+              Risiko{" "}
+              <b>{plannedRisk === null ? "Uten SL" : money(plannedRisk)}</b> ·
+              Mulig gevinst <b>{reward === null ? "—" : money(reward)}</b>
+              <br />
+              R:R{" "}
+              <b>
+                {plannedRisk && reward
+                  ? (reward / plannedRisk).toFixed(2)
+                  : "—"}
+              </b>{" "}
+              · Margin <b>{money(requiredMargin)}</b>
+            </p>
+            {previewActive &&
+              issues.map((issue) => (
+                <p className="inline-error" key={issue}>
+                  {issue}
+                </p>
+              ))}
+            <button
+              className="submit-order"
+              disabled={busy || issues.length > 0}
+              onClick={() => void order()}
+            >
+              {busy ? "Lagrer …" : "Bekreft ordre"}
+            </button>
+            <div className="ticket-actions">
+              <button
+                onClick={() => {
+                  setPreviewActive(true);
+                  setEntry(num(entryPrice || session.tick.bid));
+                }}
+              >
+                Legg til inngang i oppsettet
+              </button>
+              <button onClick={cancelDraft}>Forkast utkast</button>
+            </div>
+            <p className="setup-total">
+              Oppsett: {setupEntries.length + (previewActive ? 1 : 0)} innganger
+              · samlet risiko{" "}
+              {setupRisk === null ? "SL mangler" : money(setupRisk)}. Neste
+              inngang beholder oppsett og SL. Velg ny inngangspris og TP.
+            </p>
+            <details>
+              <summary>Notater og risikobudsjett</summary>
+              <label>
+                Beregn størrelse fra
                 <select
                   value={riskMode}
                   onChange={(e) => setRiskMode(e.target.value)}
                 >
-                  <option value="lots">Lot</option>
-                  <option value="percent">Risk %</option>
-                  <option value="cash">Risk USD</option>
+                  <option value="lots">Antall lots</option>
+                  <option value="percent">Risiko i prosent</option>
+                  <option value="cash">Risiko i penger</option>
                 </select>
-              </Field>
-              <Field
-                label={riskMode === "lots" ? "Volume (lots)" : "Risk budget"}
-              >
+              </label>
+              {riskMode !== "lots" && (
                 <input
+                  aria-label="Risikobudsjett"
                   type="number"
-                  min="0"
-                  step="0.01"
-                  value={riskMode === "lots" ? lots : riskValue}
-                  onChange={(e) =>
-                    riskMode === "lots"
-                      ? setLots(e.target.value)
-                      : setRiskValue(e.target.value)
-                  }
+                  value={riskValue}
+                  onChange={(e) => setRiskValue(e.target.value)}
                 />
-              </Field>
-            </div>
-            <div className="field-row">
-              <Field label="Stop loss">
-                <input
-                  aria-label="Order stop loss"
-                  type="number"
-                  step=".001"
-                  value={sl}
-                  onFocus={() => setPreviewActive(true)}
-                  onChange={(e) => setSL(e.target.value)}
-                  placeholder="Optional"
-                />
-              </Field>
-              <Field label="Take profit">
-                <input
-                  aria-label="Order take profit"
-                  type="number"
-                  step=".001"
-                  value={tp}
-                  onFocus={() => setPreviewActive(true)}
-                  onChange={(e) => setTP(e.target.value)}
-                  placeholder="Optional"
-                />
-              </Field>
-            </div>
-            <div className="risk-summary">
-              <div>
-                <span>Cash risk</span>
-                <b className={plannedRisk ? "red" : ""}>
-                  {plannedRisk === null ? "No initial SL" : money(plannedRisk)}
-                </b>
-              </div>
-              <div>
-                <span>Risk / reward</span>
-                <b>
-                  {plannedRisk && reward
-                    ? `1 : ${(reward / plannedRisk).toFixed(2)}`
-                    : "—"}
-                </b>
-              </div>
-              <div>
-                <span>Margin · {effectiveLots || 0} lot</span>
-                <b>{money(requiredMargin || 0)}</b>
-              </div>
-            </div>
-            <button
-              className={"submit-order " + side}
-              onClick={() =>
-                void (kind !== "market" && !previewActive
-                  ? newOrderDraft()
-                  : order())
-              }
-              disabled={
-                !session ||
-                busy ||
-                effectiveLots <= 0 ||
-                (previewActive &&
-                  kind !== "market" &&
-                  (!Number.isFinite(levelPrice) || levelPrice <= 0))
-              }
-            >
-              {busy
-                ? "Saving …"
-                : kind === "market"
-                  ? `${side === "buy" ? "Buy" : "Sell"} by Market`
-                  : previewActive
-                    ? "Place order"
-                    : "Make order"}
-              <ArrowUpRight size={15} />
-            </button>
-            {previewActive && kind !== "market" && (
-              <button className="cancel-draft" onClick={cancelDraft}>
-                Cancel draft
-              </button>
-            )}
-            <p className="micro">
-              100 oz / lot · minimum 0.01 lot · 1:
-              {session?.broker.specs.leverage ?? 500}
-              <br />
-              Simulator assumptions. {session?.broker.specs.commission ?? 0} USD
-              commission / lot / side.
-            </p>
-            <button
-              className="quiet notes-toggle"
-              onClick={() => setShowNotes(!showNotes)}
-            >
-              <PenLine size={13} /> Note <ChevronDown size={12} />
-            </button>
-            <div className="thesis-section">
-              <div className="section-label">
-                <PenLine size={13} />
-                TRADE NOTES
-              </div>
+              )}
               <textarea
-                placeholder="What do you see? What invalidates the idea?"
+                aria-label="Begrunnelse for traden"
                 value={thesis}
                 onChange={(e) => setThesis(e.target.value)}
-                rows={3}
+                placeholder="Hva ville gjort ideen din ugyldig?"
               />
-              <input
-                placeholder="Tags, separated by commas"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-              />
-              {session?.notebook.rules.map((rule) => (
-                <label className="checklist-row" key={rule.id}>
-                  <input
-                    type="checkbox"
-                    checked={!!session.checklist[rule.id]}
-                    onChange={(e) =>
-                      act({
-                        type: "ui",
-                        value: {
-                          checklist: {
-                            ...session.checklist,
-                            [rule.id]: e.target.checked,
-                          },
-                        },
-                      })
-                    }
-                  />
-                  <span>{displayDefault(rule.text)}</span>
-                </label>
-              ))}
-            </div>
-            <button
-              className="notebook-link"
-              onClick={() => setModal("notebook")}
-            >
-              <NotebookPen size={14} />
-              {displayDefault(session?.notebook.name ?? "My strategy notebook")}
-              <ChevronRight size={13} />
-            </button>
-          </div>
-        </aside>
+              <button onClick={() => setModal("notebook")}>
+                Strategiregler
+              </button>
+            </details>
+          </aside>
+        )}
         <aside
           className={"ai-panel " + (!session?.layout.ai ? "collapsed" : "")}
         >
           <button
             className="ai-collapse"
-            title={session?.layout.ai ? "Hide sidebar" : "Show sidebar"}
+            title={
+              session?.layout.ai ? "Skjul sidepanel" : "Vis coach og læring"
+            }
             onClick={() => layout({ ai: !session?.layout.ai })}
           >
             {session?.layout.ai ? (
@@ -1718,12 +2052,12 @@ export default function App() {
           </button>
           {session?.layout.ai && (
             <>
-              <nav className="sidebar-tabs" aria-label="Side panel">
+              <nav className="sidebar-tabs" aria-label="Sidepanel">
                 <button
                   className={sidebar === "assistant" ? "selected" : ""}
                   onClick={() => setFeedOpen(false)}
                 >
-                  Assistant
+                  Coach
                 </button>
                 <button
                   className={feedOpen ? "selected" : ""}
@@ -1737,33 +2071,8 @@ export default function App() {
                     </small>
                   )}
                 </button>
-                <button
-                  className={sidebar === "study" ? "selected" : ""}
-                  onClick={() => {
-                    setSidebar("study");
-                    if (state.playing) act({ type: "play", value: false });
-                  }}
-                >
-                  Study
-                </button>
               </nav>
-              {sidebar === "study" ? (
-                <RRStudyPanel
-                  state={state}
-                  call={call}
-                  picking={studyPicking}
-                  pick={(value) => {
-                    setStudyPicking(value);
-                    setTool("select");
-                    setSelected(null);
-                    setPicker(null);
-                  }}
-                  focusRange={() => chart.current?.focusStudy()}
-                  onDraft={(value) => {
-                    studyDraft.current = value;
-                  }}
-                />
-              ) : feedOpen ? (
+              {feedOpen ? (
                 <TelegramPanel embedded close={() => setFeedOpen(false)} />
               ) : (
                 <AssistantPanel
@@ -1774,7 +2083,14 @@ export default function App() {
                   setDraft={setDraft}
                   mode={chatMode}
                   setMode={setChatMode}
-                  send={ask}
+                  send={() => ask()}
+                  assess={() =>
+                    ask(
+                      "Vurder oppsettet mitt på den synlige charten. Les tegningene, innganger, SL og TP og relevant høyere tidsramme. Forklar hva som er støttet av mine regler, hva som mangler, og ett neste læringspunkt.",
+                      "Check setup",
+                      "chart",
+                    )
+                  }
                   sending={sendingAI}
                   act={act}
                   openSettings={() => setModal("settings")}
@@ -1787,25 +2103,27 @@ export default function App() {
       <footer className="statusbar">
         <div>
           <span className="status-dot" />
-          {state.playing ? "Playing" : session ? "Paused" : "No active session"}
+          {state.playing
+            ? "Spiller av"
+            : session
+              ? "Pauset"
+              : "Ingen aktiv økt"}
           <span className="muted">
-            {session?.status || "Download price data and select a session."}
+            {session?.status || "Last ned prisdata og velg en økt."}
           </span>
         </div>
         <span>
-          {state.recovered
-            ? "Recovered checkpoint"
-            : "Local transaction storage"}
+          {state.recovered ? "Gjenopprettet lagringspunkt" : "Lagres lokalt"}
           <span className="footer-sep">/</span>
           {state.ai.latency
             ? `${(state.ai.latency / 1000).toFixed(1)} s · last response`
-            : "Local only"}
+            : "Kun lokalt"}
         </span>
       </footer>
       {error && (
         <div className="toast" role="alert">
           <span>{error}</span>
-          <button title="Dismiss error" onClick={() => setError("")}>
+          <button title="Lukk feilmelding" onClick={() => setError("")}>
             <X size={16} />
           </button>
         </div>
@@ -1860,6 +2178,7 @@ function Sessions({
 }) {
   const [eligible, setEligible] = useState<any[]>([]),
     [date, setDate] = useState(""),
+    [challenge, setChallenge] = useState(""),
     [name, setName] = useState(state.session?.name ?? ""),
     [issue, setIssue] = useState("");
   useEffect(() => {
@@ -1881,6 +2200,21 @@ function Sessions({
         Resume exactly where you left off, or start at a new time with a
         separate account.
       </p>
+      <label className="field">
+        <span>Fri trening eller utfordring / Practice mode</span>
+        <select
+          aria-label="Practice mode"
+          value={challenge}
+          onChange={(e) => setChallenge(e.target.value)}
+        >
+          <option value="">Fri trening / Free practice</option>
+          {CHALLENGES.map((c, i) => (
+            <option value={c[0]} key={c[0]}>
+              {i + 1}. {c[1]} / {c[2]}
+            </option>
+          ))}
+        </select>
+      </label>
       <div className="session-choices">
         <button
           onClick={() =>
@@ -1891,27 +2225,37 @@ function Sessions({
           disabled={!state.session}
         >
           <Clock />
-          <b>Continue</b>
+          <b>Fortsett</b>
           <span>
-            {state.session ? state.session.name : "No saved session yet"}
+            {state.session ? state.session.name : "Ingen lagret økt ennå"}
           </span>
         </button>
         <button
-          onClick={() => void action({ type: "sessions.new" })}
+          onClick={() =>
+            void action({
+              type: "sessions.new",
+              challenge: challenge || undefined,
+            })
+          }
           disabled={!eligible.length}
         >
           <Shuffle />
-          <b>Random session</b>
-          <span>Fresh window preferred · $500</span>
+          <b>Tilfeldig økt</b>
+          <span>
+            Fresh window ·{" "}
+            {state.session?.dataset === "dukascopy:NAS100"
+              ? "USD 10,000"
+              : (state.session?.broker.specs.currency ?? "USD") + " 500"}
+          </span>
         </button>
         <div className="date-choice">
           <Clock />
-          <b>Select time (UTC)</b>
+          <b>Velg tidspunkt (UTC)</b>
           <select value={date} onChange={(e) => setDate(e.target.value)}>
             <option value="">
               {eligible.length
-                ? "Select an available hour"
-                : "No eligible hours yet"}
+                ? "Velg en tilgjengelig time"
+                : "Ingen kvalifiserte timer ennå"}
             </option>
             {eligible.map((e) => (
               <option key={e.hour} value={e.hour}>
@@ -1923,10 +2267,14 @@ function Sessions({
             className="quiet"
             disabled={!date}
             onClick={() =>
-              void action({ type: "sessions.new", timestamp: Number(date) })
+              void action({
+                type: "sessions.new",
+                timestamp: Number(date),
+                challenge: challenge || undefined,
+              })
             }
           >
-            Start new account
+            Start ny treningsøkt
             <ChevronRight size={14} />
           </button>
         </div>
@@ -1936,7 +2284,7 @@ function Sessions({
         unknown gaps. Blind mode can hide the date.
       </p>
       {issue && <p className="inline-error">{issue}</p>}
-      <h3>Saved sessions</h3>
+      <h3>Lagrede økter</h3>
       <div className="saved-sessions">
         {state.sessions.length ? (
           state.sessions.map((s) => (
@@ -1949,7 +2297,7 @@ function Sessions({
               <div>
                 <b>{s.name}</b>
                 <span>
-                  {s.mode === "review" ? "Review" : "Practice"} · last saved{" "}
+                  {s.mode === "review" ? "Vurder" : "Trening"} · last saved{" "}
                   {new Date(s.updated).toLocaleString("en-GB")}
                 </span>
               </div>
@@ -1957,13 +2305,13 @@ function Sessions({
             </button>
           ))
         ) : (
-          <p className="muted">Your sessions and journals appear here.</p>
+          <p className="muted">Øktene og journalene dine vises her.</p>
         )}
       </div>
       {state.session && (
         <div className="inline-edit">
           <input
-            aria-label="Session name"
+            aria-label="Navn på økt"
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
@@ -1971,7 +2319,7 @@ function Sessions({
             className="secondary-button"
             onClick={() => void action({ type: "sessions.rename", name })}
           >
-            Rename
+            Endre navn
           </button>
         </div>
       )}
@@ -1986,14 +2334,14 @@ function Sessions({
           disabled={!state.session}
         >
           <Download size={15} />
-          Export backup
+          Eksporter sikkerhetskopi
         </button>
         <button
           className="secondary-button"
           onClick={() => void action({ type: "backup.import" })}
         >
           <Upload size={15} />
-          Import backup
+          Importer sikkerhetskopi
         </button>
       </div>
     </Modal>
@@ -2291,152 +2639,162 @@ function SettingsModal({
     }
   };
   return (
-    <Modal title="Local settings" onClose={close} wide>
-      <DiscordSettings state={state} call={call} />
+    <Modal title="Innstillinger" onClose={close} wide>
       <AppearanceSettings
         value={state.appearance ?? DEFAULT_APPEARANCE}
         save={(value) => call({ type: "appearance", value })}
       />
+      <DiscordSettings state={state} call={call} />
       <div className="settings-section">
-        <h3>Chart Assistant · local AI</h3>
-        {value.provider === "managed" && <p className="micro">Automatic setup · no model selection or account is needed. The first launch downloads about 3.4 GB of verified files. Chart analysis stays on this PC. Keep the app open to finish; an interrupted download resumes next time.</p>}
-        <details><summary>Advanced AI settings (optional)</summary>
-        <p>
-          Replay and accounting work independently of AI. GPU mode uses the
-          selected offload setting. Low-memory mode uses a shorter context and
-          fewer GPU layers. Gaming mode unloads the model.
-        </p>
-        <div className="settings-grid">
-          <Field label="Local base address">
-            <input
-              value={value.url}
-              onChange={(e) => change({ url: e.target.value })}
-            />
-          </Field>
-          <Field label="Model ID (detected from runtime)">
-            <input
-              list="model-ids"
-              value={value.model}
-              onChange={(e) => change({ model: e.target.value })}
-            />
-            <datalist id="model-ids">
-              {state.ai.models.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.vision ? "Vision" : "Text"}
-                </option>
-              ))}
-            </datalist>
-          </Field>
-          <Field label="Resource profile">
-            <select
-              value={value.profile}
-              onChange={(e) => change({ profile: e.target.value as any })}
-            >
-              <option value="normal">GPU · selected offload</option>
-              <option value="light">
-                Low memory · up to 4K / 25% of layers
-              </option>
-              <option value="gaming">Off / Gaming · unload</option>
-            </select>
-          </Field>
-          <Field label="Context budget">
-            <input
-              type="number"
-              min="1024"
-              max="32768"
-              step="1024"
-              value={value.context}
-              onChange={(e) => change({ context: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="Response limit (tokens)">
-            <input
-              type="number"
-              min="100"
-              max="4096"
-              value={value.maxTokens}
-              onChange={(e) => change({ maxTokens: Number(e.target.value) })}
-            />
-          </Field>
-          <Field label="GPU layers (not a utilization guarantee)">
-            <select
-              value={value.gpu}
-              onChange={(e) => change({ gpu: e.target.value })}
-            >
-              <option value="max">Maximum</option>
-              <option value="0.75">75% of layers</option>
-              <option value="0.5">50% of layers</option>
-              <option value="0.25">25% of layers</option>
-              <option value="off">CPU</option>
-            </select>
-          </Field>
-          <Field label="Unload after inactivity (minutes)">
-            <input
-              type="number"
-              min="1"
-              max="120"
-              value={value.idleMinutes}
-              onChange={(e) => change({ idleMinutes: Number(e.target.value) })}
-            />
-          </Field>
-        </div>
-        <div className="settings-checks">
-          {(
-            [
-              ["enabled", "Remember AI enabled"],
-              ["lazy", "Load on the first question"],
-              ["vision", "Include a chart image when supported"],
-              ["structured", "Structured rule review (JSON)"],
-            ] as const
-          ).map(([key, label]) => (
-            <label key={key}>
+        <h3>Coach · lokal AI</h3>
+        {value.provider === "managed" && (
+          <p className="micro">
+            Automatisk oppsett uten modellvalg eller konto. Første oppstart
+            laster ned omtrent 3,4 GB med kontrollerte filer. Chartanalysen blir
+            på denne PC-en. La appen være åpen til nedlastingen er ferdig; et
+            avbrudd gjenopptas neste gang.
+          </p>
+        )}
+        <details>
+          <summary>Avanserte AI-innstillinger</summary>
+          <p>
+            Replay and accounting work independently of AI. GPU mode uses the
+            selected offload setting. Low-memory mode uses a shorter context and
+            fewer GPU layers. Gaming mode unloads the model.
+          </p>
+          <div className="settings-grid">
+            <Field label="Local base address">
               <input
-                type="checkbox"
-                checked={value[key]}
-                onChange={(e) => change({ [key]: e.target.checked })}
+                value={value.url}
+                onChange={(e) => change({ url: e.target.value })}
               />
-              {label}
-            </label>
-          ))}
-        </div>
-        <div className="modal-actions">
-          <button
-            className="primary"
-            onClick={() => void run({ type: "ai.settings", value })}
-          >
-            <Save size={14} />
-            Save AI profile
-          </button>
-          <button
-            className="secondary-button"
-            onClick={() => void run({ type: "ai.health" })}
-          >
-            Test / discover models
-          </button>
-          <button
-            className="secondary-button"
-            disabled={!state.settings.previous}
-            onClick={() => void run({ type: "ai.rollback" })}
-          >
-            Restore previous profile
-          </button>
-        </div>
-        <p className="micro">
-          {state.ai.message}
-          <br />
-          The tested fast profile uses Qwen3.5-4B with a text snapshot. Image
-          input is optional and slower. Downloaded models are kept locally;
-          replay works with the assistant off.
-        </p>
+            </Field>
+            <Field label="Model ID (detected from runtime)">
+              <input
+                list="model-ids"
+                value={value.model}
+                onChange={(e) => change({ model: e.target.value })}
+              />
+              <datalist id="model-ids">
+                {state.ai.models.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.vision ? "Vision" : "Text"}
+                  </option>
+                ))}
+              </datalist>
+            </Field>
+            <Field label="Resource profile">
+              <select
+                value={value.profile}
+                onChange={(e) => change({ profile: e.target.value as any })}
+              >
+                <option value="normal">GPU · selected offload</option>
+                <option value="light">
+                  Low memory · up to 4K / 25% of layers
+                </option>
+                <option value="gaming">Off / Gaming · unload</option>
+              </select>
+            </Field>
+            <Field label="Context budget">
+              <input
+                type="number"
+                min="1024"
+                max="32768"
+                step="1024"
+                value={value.context}
+                onChange={(e) => change({ context: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="Response limit (tokens)">
+              <input
+                type="number"
+                min="100"
+                max="4096"
+                value={value.maxTokens}
+                onChange={(e) => change({ maxTokens: Number(e.target.value) })}
+              />
+            </Field>
+            <Field label="GPU layers (not a utilization guarantee)">
+              <select
+                value={value.gpu}
+                onChange={(e) => change({ gpu: e.target.value })}
+              >
+                <option value="max">Maximum</option>
+                <option value="0.75">75% of layers</option>
+                <option value="0.5">50% of layers</option>
+                <option value="0.25">25% of layers</option>
+                <option value="off">CPU</option>
+              </select>
+            </Field>
+            <Field label="Unload after inactivity (minutes)">
+              <input
+                type="number"
+                min="1"
+                max="120"
+                value={value.idleMinutes}
+                onChange={(e) =>
+                  change({ idleMinutes: Number(e.target.value) })
+                }
+              />
+            </Field>
+          </div>
+          <div className="settings-checks">
+            {(
+              [
+                ["enabled", "Remember AI enabled"],
+                ["lazy", "Last modellen ved første spørsmål"],
+                ["vision", "Ta med chartbilde når modellen støtter det"],
+                ["structured", "Strukturert regelvurdering (JSON)"],
+              ] as const
+            ).map(([key, label]) => (
+              <label key={key}>
+                <input
+                  type="checkbox"
+                  checked={value[key]}
+                  onChange={(e) => change({ [key]: e.target.checked })}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+          <div className="modal-actions">
+            <button
+              className="primary"
+              onClick={() => void run({ type: "ai.settings", value })}
+            >
+              <Save size={14} />
+              Lagre AI-profil
+            </button>
+            <button
+              className="secondary-button"
+              onClick={() => void run({ type: "ai.health" })}
+            >
+              Kontroller tilgjengelige modeller
+            </button>
+            <button
+              className="secondary-button"
+              disabled={!state.settings.previous}
+              onClick={() => void run({ type: "ai.rollback" })}
+            >
+              Gjenopprett forrige profil
+            </button>
+          </div>
+          <p className="micro">
+            {state.ai.message}
+            <br />
+            The tested fast profile uses Qwen3.5-4B with a text snapshot. Image
+            input is optional and slower. Downloaded models are kept locally;
+            replay works with the assistant off.
+          </p>
         </details>
       </div>
       {specs && (
         <section className="settings-section">
-          <h3>Simulator assumptions</h3>
+          <h3>Simulatorinnstillinger</h3>
           <p>
-            Can be changed only while the account is flat. Margin = entry
-            notional / leverage. Swap is a simple daily charge at UTC midnight
-            without triple rollover.
+            Kan bare endres når kontoen ikke har posisjoner eller ventende
+            ordre. Margin er posisjonsverdi delt på gearing. Swap beregnes
+            enkelt ved midnatt UTC, uten trippel rollover.
           </p>
           <div className="settings-grid">
             {Object.entries(specs).map(([key, v]) => (
@@ -2456,21 +2814,21 @@ function SettingsModal({
             className="secondary-button"
             onClick={() => void run({ type: "specs", value: specs })}
           >
-            Save simulator profile
+            Lagre simulatorprofil
           </button>
         </section>
       )}
       <section className="settings-section">
-        <h3>Diagnostics</h3>
+        <h3>Diagnostikk</h3>
         <div className="diagnostics">
-          <span>Storage</span>
+          <span>Lagring</span>
           <code>{state.diagnostics.storage}</code>
           <span>Node / Electron</span>
           <code>
             {state.diagnostics.versions.node} /{" "}
             {state.diagnostics.versions.electron ?? "—"}
           </code>
-          <span>Recovery</span>
+          <span>Gjenoppretting</span>
           <code>
             {state.recovered ? "Last committed autosave" : "Normal save"}
           </code>
@@ -2508,10 +2866,10 @@ function Indicators({
       value: s.indicators.map((i) => (i.id === id ? { ...i, ...value } : i)),
     });
   return (
-    <Modal title="Indicators and levels" onClose={close}>
+    <Modal title="Indikatorer og nivåer" onClose={close}>
       <p className="lead">
-        Calculated from available bid candles. Missing warmup never produces
-        invented values.
+        Beregnes fra tilgjengelige bid-candles. Manglende oppvarmingsdata gir
+        ingen oppdiktede verdier.
       </p>
       {s.indicators.map((i) => (
         <div className="indicator-row" key={i.id}>
@@ -2533,7 +2891,7 @@ function Indicators({
           )}
           <input
             type="color"
-            aria-label="Indicator color"
+            aria-label="Indikatorfarge"
             value={i.color}
             onChange={(e) => change(i.id, { color: e.target.value })}
           />
@@ -2560,7 +2918,7 @@ function Indicators({
             </>
           )}
           <IconButton
-            title="Remove indicator"
+            title="Fjern indikator"
             onClick={() =>
               act({
                 type: "indicators",
@@ -2650,23 +3008,23 @@ function Notebook({
     ),
     [issue, setIssue] = useState("");
   return (
-    <Modal title="Your strategy notebook" onClose={close} wide>
+    <Modal title="Strateginotatboken din" onClose={close} wide>
       {!value ? (
-        <p>Create a session to save your rules and sources.</p>
+        <p>Opprett en økt for å lagre regler og kilder.</p>
       ) : (
         <>
           <div className="notebook-notice">
-            No rules are attributed to Accurate RR without verified source
-            material. This checklist is generic and editable.
+            Regler tilskrives ikke Accurate RR uten verifiserte kilder. Denne
+            sjekklisten er generell og kan redigeres.
           </div>
           <div className="field-row">
-            <Field label="Strategy name">
+            <Field label="Strateginavn">
               <input
                 value={value.name}
                 onChange={(e) => setValue({ ...value, name: e.target.value })}
               />
             </Field>
-            <Field label="Version">
+            <Field label="Versjon">
               <input
                 value={value.version}
                 onChange={(e) =>
@@ -2675,13 +3033,13 @@ function Notebook({
               />
             </Field>
           </div>
-          <Field label="Source / link / transcript date">
+          <Field label="Kilde / lenke / dato">
             <input
               value={value.source}
               onChange={(e) => setValue({ ...value, source: e.target.value })}
             />
           </Field>
-          <Field label="Your notes / pasted transcript">
+          <Field label="Notater / innlimt transkripsjon">
             <textarea
               rows={9}
               value={value.text}
@@ -2689,7 +3047,7 @@ function Notebook({
               placeholder="Paste material to study. It is saved as reference material, never as order instructions."
             />
           </Field>
-          <Field label="Checklist · one rule per line">
+          <Field label="Sjekkliste · én regel per linje">
             <textarea
               rows={5}
               value={ruleText}
@@ -2704,7 +3062,7 @@ function Notebook({
                 setValue({ ...value, verified: e.target.checked })
               }
             />
-            I have checked these rules against the source above.
+            Jeg har kontrollert reglene mot kilden over.
           </label>
           <button
             className="primary"
@@ -2726,7 +3084,7 @@ function Notebook({
                 .catch((e) => setIssue(String(e)))
             }
           >
-            Save strategy and checklist
+            Lagre strategi og sjekkliste
           </button>
           {issue && <p className="inline-error">{issue}</p>}
         </>
@@ -2743,42 +3101,18 @@ function Fib({
   change: (p: Partial<Drawing>) => void;
   close: () => void;
 }) {
-  const [text, setText] = useState(drawing.levels.join(", "));
   return (
-    <Modal title="Fibonacci levels" onClose={close}>
-      <Field label="Levels separated by commas">
-        <input value={text} onChange={(e) => setText(e.target.value)} />
-      </Field>
-      <p>
-        0 follows the first anchor and 1 the second. Both anchors can be moved
-        on the chart.
-      </p>
+    <Modal title="Fibonacci-nivåer" onClose={close}>
+      <FibEditor drawing={drawing} change={change} />
       <div className="modal-actions">
-        <button
-          className="secondary-button"
-          onClick={() => change({ a: drawing.b, b: drawing.a })}
-        >
-          Reverse direction
-        </button>
-        <button
-          className="primary"
-          onClick={() => {
-            const levels = text.split(",").map(Number);
-            if (
-              levels.length &&
-              levels.every((n) => Number.isFinite(n) && n >= -10 && n <= 10)
-            ) {
-              change({ levels });
-              close();
-            }
-          }}
-        >
-          Save levels
+        <button className="primary" onClick={close}>
+          Ferdig
         </button>
       </div>
     </Modal>
   );
 }
+
 function Bottom({
   tab,
   session: s,
@@ -2800,6 +3134,7 @@ function Bottom({
   reviewTrade: (id: string) => void;
   locateTrade: (id: string) => void;
 }) {
+  const money = (n: number) => formatMoney(n, s.broker.specs.currency ?? "USD");
   const [editing, setEditing] = useState<any>(null),
     [image, setImage] = useState<string | null>(null),
     [overall, setOverall] = useState<any[]>([]),
@@ -2826,14 +3161,17 @@ function Bottom({
       {tab === "account" && (
         <div className="account-overview">
           {[
-            ["Balance", money(s.broker.balance)],
-            ["Equity", money(account(s.broker, s.tick).equity)],
-            ["Realized P/L", money(s.broker.balance - 500)],
-            ["Floating P/L", money(account(s.broker, s.tick).floating)],
-            ["Used margin", money(account(s.broker, s.tick).usedMargin)],
-            ["Free margin", money(account(s.broker, s.tick).freeMargin)],
-            ["Simulated leverage", `1:${s.broker.specs.leverage}`],
-            ["Account type", "USD · hedging · paper"],
+            ["Saldo", money(s.broker.balance)],
+            ["Egenkapital", money(account(s.broker, s.tick).equity)],
+            [
+              "Realisert P/L",
+              money(s.broker.balance - (s.broker.initialBalance ?? 500)),
+            ],
+            ["Urealisert P/L", money(account(s.broker, s.tick).floating)],
+            ["Brukt margin", money(account(s.broker, s.tick).usedMargin)],
+            ["Ledig margin", money(account(s.broker, s.tick).freeMargin)],
+            ["Simulert gearing", `1:${s.broker.specs.leverage}`],
+            ["Kontotype", "USD · hedging · paper"],
           ].map(([label, value]) => (
             <div key={label}>
               <span>{label}</span>
@@ -2847,13 +3185,13 @@ function Bottom({
           <table>
             <thead>
               <tr>
-                <th>Direction / size</th>
-                <th>Entry</th>
+                <th>Retning / størrelse</th>
+                <th>Inngang</th>
                 <th>Stop loss</th>
                 <th>Take profit</th>
-                <th>Initial risk</th>
-                <th>Floating P/L</th>
-                <th>Actions</th>
+                <th>Opprinnelig risiko</th>
+                <th>Urealisert P/L</th>
+                <th>Handlinger</th>
               </tr>
             </thead>
             <tbody>
@@ -2907,7 +3245,7 @@ function Bottom({
                         })
                       }
                     >
-                      Edit / close
+                      Rediger / lukk
                     </button>
                     <button
                       className="table-action"
@@ -2930,8 +3268,8 @@ function Bottom({
         ) : (
           <div className="empty-small">
             <Activity size={22} strokeWidth={1} />
-            <b>No open positions</b>
-            <span>Waiting is a valid decision.</span>
+            <b>Ingen åpne posisjoner</b>
+            <span>Å vente er også en beslutning.</span>
           </div>
         ))}
       {tab === "pending" &&
@@ -2939,12 +3277,12 @@ function Bottom({
           <table>
             <thead>
               <tr>
-                <th>Orders</th>
-                <th>Volume</th>
-                <th>Price</th>
+                <th>Ordre</th>
+                <th>Volum</th>
+                <th>Pris</th>
                 <th>SL / TP</th>
-                <th>Placed</th>
-                <th>Actions</th>
+                <th>Opprettet</th>
+                <th>Handlinger</th>
               </tr>
             </thead>
             <tbody>
@@ -2971,13 +3309,13 @@ function Bottom({
                         })
                       }
                     >
-                      Edit
+                      Rediger
                     </button>
                     <button
                       className="table-action"
                       onClick={() => act({ type: "pending.cancel", id: p.id })}
                     >
-                      Cancel order
+                      Kanseller ordre
                     </button>
                   </td>
                 </tr>
@@ -2986,8 +3324,7 @@ function Bottom({
           </table>
         ) : (
           <div className="empty-small">
-            No pending orders. Orders trigger on the first eligible subsequent
-            tick.
+            Ingen ventende ordre. Ordre utløses ved neste kvalifiserte pristick.
           </div>
         ))}
       {tab === "history" &&
@@ -2995,13 +3332,13 @@ function Bottom({
           <table>
             <thead>
               <tr>
-                <th>Direction</th>
+                <th>Retning</th>
                 <th>Lot</th>
-                <th>Entry → exit</th>
-                <th>Gross / costs</th>
-                <th>Net</th>
+                <th>Inngang → utgang</th>
+                <th>Brutto / kostnader</th>
+                <th>Netto</th>
                 <th>R</th>
-                <th>Reason</th>
+                <th>Årsak</th>
                 <th>Chart</th>
               </tr>
             </thead>
@@ -3031,11 +3368,21 @@ function Bottom({
                           )
                         }
                       >
-                        Decision chart
+                        Beslutningschart
                       </button>
                     )}
-                    <button className="table-action" onClick={() => locateTrade(f.positionId)}>Show on chart</button>
-                    <button className="table-action" onClick={() => reviewTrade(f.positionId)}>Review with AI</button>
+                    <button
+                      className="table-action"
+                      onClick={() => locateTrade(f.positionId)}
+                    >
+                      Vis i chartet
+                    </button>
+                    <button
+                      className="table-action"
+                      onClick={() => reviewTrade(f.positionId)}
+                    >
+                      Review with AI
+                    </button>
                   </td>
                 </tr>
               ))}
@@ -3097,14 +3444,14 @@ function Bottom({
               onChange={(e) => setStrategy(e.target.value)}
             />
             <select value={mode} onChange={(e) => setMode(e.target.value)}>
-              <option value="training">Practice</option>
-              <option value="review">Review</option>
+              <option value="training">Trening</option>
+              <option value="review">Vurder</option>
               <option value="">Both modes</option>
             </select>
           </div>
           <div className="stat-cards">
             {[
-              ["Net", money(stats.net)],
+              ["Netto", money(stats.net)],
               ["Closed trades", stats.tradeCount],
               ["Partial exits", stats.count],
               [

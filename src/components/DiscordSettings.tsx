@@ -24,14 +24,14 @@ export function DiscordSettings({
   };
   return (
     <section className="settings-section discord-settings">
-      <h3>Discord activity</h3>
+      <h3>Discord-aktivitet</h3>
       <p>
-        Show your balance, completed wins and a link to the RETRACE project on
-        your Discord profile.
+        Vis saldo, antall utførte trades og en lenke til RETRACE på
+        Discord-profilen din.
       </p>
       <label className="discord-toggle">
         <input
-          aria-label="Show activity in Discord"
+          aria-label="Vis aktivitet i Discord"
           type="checkbox"
           checked={value.enabled}
           onChange={(e) => {
@@ -40,20 +40,20 @@ export function DiscordSettings({
             void save(next);
           }}
         />{" "}
-        Show activity in Discord
+        Vis aktivitet i Discord
       </label>
       <p className="micro" role="status">
-        {state.discordStatus?.message ?? "Activity sharing is off."}
+        {state.discordStatus?.message ?? "Aktivitetsdeling er slått av."}
       </p>
       <details className="discord-help">
-        <summary>Advanced setup (optional)</summary>
+        <summary>Egen Discord-app (valgfritt)</summary>
         <p className="micro">
-          RETRACE is ready to use. Keep Discord desktop open. Only change these
-          fields to use your own Discord application.
+          RETRACE er ferdig konfigurert. La Discord-appen være åpen. Endre bare
+          disse feltene hvis du vil bruke din egen Discord-applikasjon.
         </p>
         <div className="settings-grid">
           <label className="field">
-            <span>Application ID</span>
+            <span>Applikasjons-ID</span>
             <input
               aria-label="Discord Application ID"
               inputMode="numeric"
@@ -66,7 +66,7 @@ export function DiscordSettings({
             />
           </label>
           <label className="field">
-            <span>Logo image asset name</span>
+            <span>Navn på logoressurs</span>
             <input
               aria-label="Discord image asset name"
               placeholder="retrace"
@@ -79,25 +79,27 @@ export function DiscordSettings({
           </label>
         </div>
         <button className="secondary-button" onClick={() => void save()}>
-          {saved ? "Discord settings saved" : "Save Discord settings"}
+          {saved
+            ? "Discord-innstillinger lagret"
+            : "Lagre Discord-innstillinger"}
         </button>
         <details
           className="discord-help"
           open={!value.applicationId || undefined}
         >
-          <summary>One-time setup</summary>
+          <summary>Oppsett av egen applikasjon</summary>
           <ol>
             <li>
               <button
                 className="table-action"
                 onClick={() => void call({ type: "discord.portal" })}
               >
-                Open Discord Developer Portal
+                Åpne Discord Developer Portal
               </button>{" "}
               and create an application named <b>RETRACE</b>.
             </li>
             <li>
-              Copy its <b>Application ID</b> into the field above.
+              Copy its <b>Applikasjons-ID</b> into the field above.
             </li>
             <li>
               Under <b>Rich Presence → Art Assets</b>, upload <b>RETRACE.png</b>{" "}
@@ -106,7 +108,7 @@ export function DiscordSettings({
                 className="table-action"
                 onClick={() => void call({ type: "discord.icon" })}
               >
-                Show icon file
+                Vis ikonfil
               </button>
             </li>
             <li>
@@ -115,9 +117,9 @@ export function DiscordSettings({
             </li>
           </ol>
           <p className="micro">
-            No account token or bot is needed. Balance includes booked profit
-            and costs; open profit is excluded. Wins count fully closed
-            profitable trades after all partial exits and costs.
+            Ingen kontonøkkel eller bot er nødvendig. Saldo inkluderer realisert
+            resultat og kostnader. Trades taken teller hver faktisk fylt trade
+            én gang; delvise exits øker ikke antallet.
           </p>
         </details>
       </details>

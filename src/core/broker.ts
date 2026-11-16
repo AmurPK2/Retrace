@@ -32,15 +32,19 @@ export function margin(entry: number, lots: number, specs: Specs) {
     .div(specs.leverage)
     .toNumber();
 }
-export function initialBroker(specs: Specs = DEFAULT_SPECS): BrokerState {
+export function initialBroker(
+  specs: Specs = DEFAULT_SPECS,
+  balance = 500,
+): BrokerState {
   return {
-    balance: 500,
+    balance,
+    initialBalance: balance,
     positions: [],
     pending: [],
     fills: [],
     events: [],
     seq: 0,
-    peak: 500,
+    peak: balance,
     maxDrawdown: 0,
     lastSwapDay: "",
     specs: { ...specs },
@@ -245,6 +249,8 @@ export function close(
   s.fills.push({
     id: p.id + ":close:" + s.seq + ":" + s.fills.length,
     positionId: p.id,
+    setupId: p.setupId,
+    planId: p.planId,
     side: p.side,
     entry: p.entry,
     exit,
@@ -314,15 +320,37 @@ export function editPending(
 ) {
   const old = s.pending.find((p) => p.id === id);
   if (!old) throw Error("Order not found.");
-  const index = s.pending.indexOf(old);
-  s.pending.splice(index, 1);
-  try {
-    place(s, q, { ...old, ...changes, kind: old.kind, side: old.side });
-  } catch (error) {
-    s.pending.splice(index, 0, old);
-    throw error;
-  }
-  log(s, q.t, `Pending order replaced: ${id.slice(0, 8)}`);
+  // Validate on a copy. An invalid edit must leave identity, protection, cash
+  // and journal unchanged; a valid replacement remains the same entry.
+  const next = structuredClone(s);
+  next.pending = next.pending.filter((p) => p.id !== id);
+  const newId = place(next, q, {
+    ...old,
+    ...changes,
+    kind: old.kind,
+    side: old.side,
+  });
+  const replacement = next.pending.find((p) => p.id === newId)!;
+  replacement.id = old.id;
+  replacement.at = old.at;
+  replacement.revisions = [
+    ...(old.revisions ?? []),
+    {
+      at: q.t,
+      seq: next.seq,
+      price: replacement.price,
+      side: replacement.side,
+      sl: replacement.sl,
+      tp: replacement.tp,
+      lots: replacement.lots,
+    },
+  ];
+  Object.assign(s, next);
+  log(
+    s,
+    q.t,
+    `Pending order updated: ${id.slice(0, 8)} · protection prices kept unless explicitly edited`,
+  );
 }
 export function processTick(s: BrokerState, q: Tick) {
   s.seq++;

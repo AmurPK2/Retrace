@@ -57,7 +57,9 @@ export function initialChartRange(
     const from = logicalAtTime(times, saved.fromTime!, step),
       to = logicalAtTime(times, saved.toTime!, step);
     if (to > from && from < times.length && to > 0)
-      return { ...saved, from, to };
+      return to - from >= 4
+        ? { ...saved, from, to }
+        : { ...saved, from: (from + to) / 2 - 2, to: (from + to) / 2 + 2 };
   }
   if (
     saved?.version === 3 &&

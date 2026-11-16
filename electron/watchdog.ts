@@ -39,7 +39,10 @@ async function cleanup() {
       log("ownership-changed");
       return;
     }
-    if (owned.provider === "managed") { log("managed-host-owns-child"); return; }
+    if (owned.provider === "managed") {
+      log("managed-host-owns-child");
+      return;
+    }
     if (
       owned.ownedModel &&
       owned.instance &&

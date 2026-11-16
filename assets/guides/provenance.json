@@ -1,0 +1,362 @@
+[
+  {
+    "id": "workflow",
+    "file": "RETRACE-workflow-norsk.mp4",
+    "seconds": 67.69,
+    "bytes": 2186769,
+    "sha256": "4b1e4bb5609b33a10b0d4d3fba84558267245a0b4efb83c6b107e99894645466",
+    "voice": "nb-NO-PernilleNeural",
+    "captureMethod": "Actual packaged RETRACE Electron screenshots and genuine tick replay, in an isolated public demonstration profile. No user sessions or generated chart prices.",
+    "scenes": [
+      {
+        "scene": "workflow-1",
+        "start": 0,
+        "seconds": 25.416666666666668,
+        "voiceSha256": "89ad9bbe65f2ce293b6a4b4a8528d7b1d65b3d0c43299a7cc98487846f6bbf3b",
+        "captures": [
+          {
+            "file": "learning-overview.png",
+            "sha256": "377f3342f9db145137b38897e1853916d8122e464c091f626173acdbb38ff555"
+          }
+        ]
+      },
+      {
+        "scene": "workflow-2",
+        "start": 25.416666666666668,
+        "seconds": 20.083333333333332,
+        "voiceSha256": "0897ef53bd8d8a7521dd8c2463aae45089726d7e9c4b8c7adb69e5f7b3a4ebd1",
+        "captures": [
+          {
+            "file": "context-menu.png",
+            "sha256": "bb9a30dc5cb18c34cad04b8f22c7d4d278a58e5e5ee4a8ef9aa441b1feeb0ae8"
+          }
+        ]
+      },
+      {
+        "scene": "workflow-3",
+        "start": 45.5,
+        "seconds": 22.166666666666668,
+        "voiceSha256": "0a390592e02e7fdc9d2b851817b58c3a78b41a700d314fee65eff6fb697f2dfb",
+        "captures": [
+          {
+            "file": "replay-000.png",
+            "sha256": "2d6365c09f3117373fa92ab83ce1da25ac0a114c916312a4d8e39b8c04c503af"
+          },
+          {
+            "file": "replay-001.png",
+            "sha256": "f688cbd028ee6057350f51bae56cc98733efb4417163a89465665a211728ad8a"
+          },
+          {
+            "file": "replay-002.png",
+            "sha256": "2dace3275e0bfa67ca5031c9a87abc8992755a28a52d2971c65f36c83952e6a2"
+          },
+          {
+            "file": "replay-003.png",
+            "sha256": "9a775e91052629af00deb2359f8cf41f9ad78659c8b0f0b6a815e025b8e9cf1f"
+          },
+          {
+            "file": "replay-004.png",
+            "sha256": "d382b7c930e946eaa5dfec3e6a2ed36941d2cc5384425bfda646d6ecf1a36641"
+          },
+          {
+            "file": "replay-005.png",
+            "sha256": "adc0b948045191bc8ffde98f50564e0ad8122a8186825856e0aa08dacc86f296"
+          },
+          {
+            "file": "replay-006.png",
+            "sha256": "fd04115242e12b1af6c3f9459f340fd21595fd91fe43ff7a3b1d11d8c428d47a"
+          },
+          {
+            "file": "replay-007.png",
+            "sha256": "7ba7c1d5c2b89d388631c880770be55005ed7327f8f33d5efe64e98cb15bcee9"
+          },
+          {
+            "file": "replay-008.png",
+            "sha256": "53238b7a994f0ca38426a1a768ede552c35799718ec52fbbbdf3966d54778f7b"
+          },
+          {
+            "file": "replay-009.png",
+            "sha256": "37a8e5f17e5c4ce58e13b7d0325fc1436575d393053c802675edf310b920d4be"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "candles",
+    "file": "RETRACE-candles-norsk.mp4",
+    "seconds": 74.56,
+    "bytes": 2184733,
+    "sha256": "3495f7ced7edc6077101ace45b6b710ed55e927a02933011fc3636b12f437742",
+    "voice": "nb-NO-PernilleNeural",
+    "captureMethod": "Actual packaged RETRACE Electron screenshots and genuine tick replay, in an isolated public demonstration profile. No user sessions or generated chart prices.",
+    "scenes": [
+      {
+        "scene": "candles-1",
+        "start": 0,
+        "seconds": 24.625,
+        "voiceSha256": "d177c8ee94c04719e9e9d50929c7eff048ee9043603c374eb0fac56d89d317d8",
+        "captures": [
+          {
+            "file": "candle-learning.png",
+            "sha256": "8c9112481458db98a62dd12a525660143f11bf3c43fdfa28198e3b195b23e16b"
+          }
+        ]
+      },
+      {
+        "scene": "candles-2",
+        "start": 24.625,
+        "seconds": 26.208333333333332,
+        "voiceSha256": "40f95c900343d8376e1cb6778a594f81677cedf79f6c72e7c96bacb1a0f50e42",
+        "captures": [
+          {
+            "file": "candle-learning.png",
+            "sha256": "8c9112481458db98a62dd12a525660143f11bf3c43fdfa28198e3b195b23e16b"
+          }
+        ]
+      },
+      {
+        "scene": "candles-3",
+        "start": 50.83333333333333,
+        "seconds": 23.708333333333332,
+        "voiceSha256": "9d8c294004e25e162940f79def010004d8ee42b7f5cc7443cb22a1f6714cca90",
+        "captures": [
+          {
+            "file": "timeframes.png",
+            "sha256": "5b0c78e9e865747f640aa87d74172934ba11d5c21b07ac686841fdee64a23f8e"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "htf",
+    "file": "RETRACE-htf-norsk.mp4",
+    "seconds": 74.6,
+    "bytes": 2489709,
+    "sha256": "e3ea95936947e92987e86b618ef97e321ebc4f1024e15d4d6a5e17ad8aac16f2",
+    "voice": "nb-NO-PernilleNeural",
+    "captureMethod": "Actual packaged RETRACE Electron screenshots and genuine tick replay, in an isolated public demonstration profile. No user sessions or generated chart prices.",
+    "scenes": [
+      {
+        "scene": "htf-1",
+        "start": 0,
+        "seconds": 23.833333333333332,
+        "voiceSha256": "457cdf15b2ff8e35b5d7f00ec846f544a9fc4ec02880c7bd42d4b35176b3541a",
+        "captures": [
+          {
+            "file": "htf.png",
+            "sha256": "8515b160b2870bbcca0c450b2f6795c012d7b36b9a4417f4ebe7999d27fd833b"
+          }
+        ]
+      },
+      {
+        "scene": "htf-2",
+        "start": 23.833333333333332,
+        "seconds": 22.083333333333332,
+        "voiceSha256": "5dc300f598249c728fe952d03011dd36afbf3a97ed659532919bce06374544ea",
+        "captures": [
+          {
+            "file": "htf-settings.png",
+            "sha256": "600cbfd23d7ea715538efcb03b6e6f692431187baff7418eeb0d2c3919fa2308"
+          }
+        ]
+      },
+      {
+        "scene": "htf-3",
+        "start": 45.916666666666664,
+        "seconds": 28.666666666666668,
+        "voiceSha256": "1f435bfae0770bf04bddfe6bb38a5dac938eff3ee5b272bb481f0ce0a756e9fa",
+        "captures": [
+          {
+            "file": "replay-000.png",
+            "sha256": "2d6365c09f3117373fa92ab83ce1da25ac0a114c916312a4d8e39b8c04c503af"
+          },
+          {
+            "file": "replay-001.png",
+            "sha256": "f688cbd028ee6057350f51bae56cc98733efb4417163a89465665a211728ad8a"
+          },
+          {
+            "file": "replay-002.png",
+            "sha256": "2dace3275e0bfa67ca5031c9a87abc8992755a28a52d2971c65f36c83952e6a2"
+          },
+          {
+            "file": "replay-003.png",
+            "sha256": "9a775e91052629af00deb2359f8cf41f9ad78659c8b0f0b6a815e025b8e9cf1f"
+          },
+          {
+            "file": "replay-004.png",
+            "sha256": "d382b7c930e946eaa5dfec3e6a2ed36941d2cc5384425bfda646d6ecf1a36641"
+          },
+          {
+            "file": "replay-005.png",
+            "sha256": "adc0b948045191bc8ffde98f50564e0ad8122a8186825856e0aa08dacc86f296"
+          },
+          {
+            "file": "replay-006.png",
+            "sha256": "fd04115242e12b1af6c3f9459f340fd21595fd91fe43ff7a3b1d11d8c428d47a"
+          },
+          {
+            "file": "replay-007.png",
+            "sha256": "7ba7c1d5c2b89d388631c880770be55005ed7327f8f33d5efe64e98cb15bcee9"
+          },
+          {
+            "file": "replay-008.png",
+            "sha256": "53238b7a994f0ca38426a1a768ede552c35799718ec52fbbbdf3966d54778f7b"
+          },
+          {
+            "file": "replay-009.png",
+            "sha256": "37a8e5f17e5c4ce58e13b7d0325fc1436575d393053c802675edf310b920d4be"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "risk",
+    "file": "RETRACE-risk-norsk.mp4",
+    "seconds": 71.02,
+    "bytes": 2121115,
+    "sha256": "115c3c93038ebd1fd7834357820bc91fd5d1b0dfd3bedc64a71aad2a79c1c115",
+    "voice": "nb-NO-PernilleNeural",
+    "captureMethod": "Actual packaged RETRACE Electron screenshots and genuine tick replay, in an isolated public demonstration profile. No user sessions or generated chart prices.",
+    "scenes": [
+      {
+        "scene": "risk-1",
+        "start": 0,
+        "seconds": 18.708333333333332,
+        "voiceSha256": "8df06ca42289578503ebfbb679390420bb90d872d00e5224a3ef6aded233e066",
+        "captures": [
+          {
+            "file": "order-plan.png",
+            "sha256": "4d54609e9d995f71adffd3fceb41a6267f981849ad99b1c389bee21ca8eaa720"
+          }
+        ]
+      },
+      {
+        "scene": "risk-2",
+        "start": 18.708333333333332,
+        "seconds": 21.625,
+        "voiceSha256": "3cf9255c6fcf7d76db387188328f8b9ad13f2625ae478e9c9342e35f00ee284b",
+        "captures": [
+          {
+            "file": "order-plan.png",
+            "sha256": "4d54609e9d995f71adffd3fceb41a6267f981849ad99b1c389bee21ca8eaa720"
+          }
+        ]
+      },
+      {
+        "scene": "risk-3",
+        "start": 40.33333333333333,
+        "seconds": 30.666666666666668,
+        "voiceSha256": "3ca33a4eec6f8ac3bb8302ee4b4927227617e27dc9f0418bd8147b5e8d7f715b",
+        "captures": [
+          {
+            "file": "two-task.png",
+            "sha256": "cfdadcd02cc22f6943bd4ffe0ee6c73467075bd5fddecc81514a3a67d80c0ea9"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "fibonacci",
+    "file": "RETRACE-fibonacci-norsk.mp4",
+    "seconds": 67.6,
+    "bytes": 2019202,
+    "sha256": "5ff9a1b60dc1dfa66b45f3fbf92e11582b53d0b1e7aa01c6bd66f7da8c4253d0",
+    "voice": "nb-NO-PernilleNeural",
+    "captureMethod": "Actual packaged RETRACE Electron screenshots and genuine tick replay, in an isolated public demonstration profile. No user sessions or generated chart prices.",
+    "scenes": [
+      {
+        "scene": "fibonacci-1",
+        "start": 0,
+        "seconds": 20.041666666666668,
+        "voiceName": "nb-NO-PernilleNeural",
+        "voiceSha256": "1e48244ccda10894d814df369687efb2bb82fed40216968382b252663fa69e07",
+        "captures": [
+          {
+            "file": "fibonacci.png",
+            "sha256": "af0032fff8ad387cd1899273a11f09e202e95a7c5f8c8b77d4775e81dd224369"
+          }
+        ]
+      },
+      {
+        "scene": "fibonacci-2",
+        "start": 20.041666666666668,
+        "seconds": 22.916666666666668,
+        "voiceName": "en-US-EmmaMultilingualNeural",
+        "voiceSha256": "96b4dfb208fd26e040b77b7500a3f8460f120c428aa5f47128822266c11349de",
+        "captures": [
+          {
+            "file": "fibonacci-settings.png",
+            "sha256": "9cbb08d32c0fb98376a63c55bdf279432ff997eebf50c9507704d7c6f29aa25e"
+          }
+        ]
+      },
+      {
+        "scene": "fibonacci-3",
+        "start": 42.958333333333336,
+        "seconds": 24.625,
+        "voiceName": "nb-NO-FinnNeural",
+        "voiceSha256": "5053cc4cda0f5e5f23bfa8ac7b96c1a28a59d2e42cd9c5382e5ed72dcc19ff52",
+        "captures": [
+          {
+            "file": "fibonacci-reversed.png",
+            "sha256": "ecd52d51d7771917a85b34e92227fb1d5d109aa48d4ca08cc61b3b9bdadddc20"
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "id": "coach",
+    "file": "RETRACE-coach-norsk.mp4",
+    "seconds": 91.94,
+    "bytes": 2776009,
+    "sha256": "7eedb5a695baec7186a55655c7957ade607bb8813fb5c07d8d434a5710ee30ec",
+    "voice": "nb-NO-PernilleNeural",
+    "captureMethod": "Actual packaged RETRACE Electron screenshots and genuine tick replay, in an isolated public demonstration profile. No user sessions or generated chart prices.",
+    "scenes": [
+      {
+        "scene": "coach-1",
+        "start": 0,
+        "seconds": 25.375,
+        "voiceName": "en-US-EmmaMultilingualNeural",
+        "voiceSha256": "46fdc7cfe6104b867fc10fbcf3c907acbab689bc526574225486229044aba286",
+        "captures": [
+          {
+            "file": "coach.png",
+            "sha256": "ea983e2d9820b331f622416e501b855c8ed142c5d57babb74eca52f5a3679497"
+          }
+        ]
+      },
+      {
+        "scene": "coach-2",
+        "start": 25.375,
+        "seconds": 29.166666666666668,
+        "voiceName": "nb-NO-FinnNeural",
+        "voiceSha256": "aaefe1bfeb79fe9f6bd18648f362ae3a9da566bfc49f19ccba1f091f3937624c",
+        "captures": [
+          {
+            "file": "coach-detail.png",
+            "sha256": "ea983e2d9820b331f622416e501b855c8ed142c5d57babb74eca52f5a3679497"
+          }
+        ]
+      },
+      {
+        "scene": "coach-3",
+        "start": 54.54166666666667,
+        "seconds": 37.375,
+        "voiceName": "nb-NO-FinnNeural",
+        "voiceSha256": "798ee50a41e720efea400a7c9978c8466b8962691d91cf389c7d49240f3fe0cb",
+        "captures": [
+          {
+            "file": "challenge-history.png",
+            "sha256": "ee918857a1586a6da0e4203341c68d4128545e155d25672c21612def9b18ae0a"
+          }
+        ]
+      }
+    ]
+  }
+]

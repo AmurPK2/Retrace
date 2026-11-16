@@ -35,6 +35,9 @@ export type Bar = {
 export type Side = "buy" | "sell";
 export type OrderKind = "market" | "limit" | "stop";
 export type Specs = {
+  currency?: string;
+  unit?: string;
+  tickSize?: number;
   contract: number;
   minLot: number;
   lotStep: number;
@@ -59,6 +62,17 @@ export const DEFAULT_SPECS: Specs = {
   precision: 3,
 };
 export type Order = {
+  revisions?: {
+    at: number;
+    seq: number;
+    price?: number;
+    side: Side;
+    sl?: number;
+    tp?: number;
+    lots: number;
+  }[];
+  setupId?: string;
+  planId?: string;
   id: string;
   side: Side;
   kind: OrderKind;
@@ -86,6 +100,8 @@ export type Position = Order & {
   initialTp?: number;
 };
 export type Fill = {
+  setupId?: string;
+  planId?: string;
   changes?: { t: number; sl?: number; tp?: number }[];
   id: string;
   positionId: string;
@@ -110,6 +126,7 @@ export type Fill = {
   initialTp?: number;
 };
 export type BrokerState = {
+  initialBalance?: number;
   balance: number;
   positions: Position[];
   pending: Order[];
@@ -128,6 +145,17 @@ export type Drawing = {
   b: { time: number; price: number };
   color: string;
   locked: boolean;
+  hidden?: boolean;
+  fibFill?: boolean;
+  fibStyles?: Record<
+    string,
+    {
+      color: string;
+      label: string;
+      visible: boolean;
+      style: "solid" | "dashed" | "dotted";
+    }
+  >;
   label: string;
   levels: number[];
   createdCursor: number;
@@ -155,9 +183,17 @@ export type Indicator = {
   pane?: "price" | "separate";
 };
 export type Message = {
+  savedFacts?: boolean;
   historyAnswer?: boolean;
   evidenceFallback?: boolean;
-  evidence?: { tradeId?: string; label?: string; decisionCutoff?: number; decisionImage: boolean; currentImage: boolean; chartScan: boolean };
+  evidence?: {
+    tradeId?: string;
+    label?: string;
+    decisionCutoff?: number;
+    decisionImage: boolean;
+    currentImage: boolean;
+    chartScan: boolean;
+  };
   rawText?: string;
   groundingFiltered?: boolean;
   id: string;
@@ -189,6 +225,7 @@ export type Notebook = {
   cutoff: number;
 };
 export type Session = {
+  learning?: import("./core/challenges").Learning;
   study?: import("./core/rr-study").RRStudy;
   journalDraft?: string;
   dataset: string;
@@ -206,6 +243,7 @@ export type Session = {
   indicators: Indicator[];
   layout: {
     timeframe: TF;
+    htf?: import("./core/htf").HTFSettings;
     second: TF;
     dual: boolean;
     ai: boolean;
@@ -264,7 +302,7 @@ export const DEFAULT_AI: AISettings = {
   enabled: true,
   profile: "normal",
   context: 8192,
-  maxTokens: 192,
+  maxTokens: 640,
   vision: false,
   structured: false,
   lazy: false,
@@ -318,6 +356,7 @@ export type AppState = {
     mode: string;
   }[];
   bars: Bar[];
+  htfBars?: Bar[];
   secondBars: Bar[];
   quote: Tick | null;
   coverage: Coverage;

@@ -1,0 +1,51 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:04.103
+Side-candlen viser én pågående firetimers periode som standard.
+
+00:00:04.103 --> 00:00:06.480
+Den deler prisskala med hovedchartet.
+
+00:00:06.480 --> 00:00:09.333
+Samme pris ligger på samme høyde.
+
+00:00:09.333 --> 00:00:16.464
+Kroppen går fra åpningen til prisen nå, mens vekene viser høyeste og laveste pris
+hittil.
+
+00:00:16.464 --> 00:00:23.120
+En ung firetimers candle kan være liten fordi prisen ennå har beveget seg lite.
+
+00:00:24.133 --> 00:00:29.874
+Når du zoomer prisskalaen, endrer høyden seg sammen med de vanlige candlene.
+
+00:00:29.874 --> 00:00:33.702
+Tilpass lar deg endre bredden, fargene og antallet.
+
+00:00:33.702 --> 00:00:37.050
+Bredden endrer bare hvor tykk candlen er.
+
+00:00:37.050 --> 00:00:42.791
+Hvis hele området ikke får plass, trykker du Vis hele firetimers candlen.
+
+00:00:42.791 --> 00:00:45.183
+Den knappen tilpasser chartets prisskala.
+
+00:00:46.217 --> 00:00:47.782
+Nedtellingen følger replay-tiden.
+
+00:00:47.782 --> 00:00:50.390
+Åpningene er avgrenset i UTC.
+
+00:00:50.390 --> 00:00:55.086
+Space går en candle fram på tidsrammen du bruker.
+
+00:00:55.086 --> 00:01:02.389
+Kildevideoens Power of Three-eksempel bruker firetimers åpning som kontekst, så
+lokal bekreftelse og stopp.
+
+00:01:02.389 --> 00:01:07.085
+Det gjør ikke firetimers sluttpris til en automatisk stopp.
+
+00:01:07.085 --> 00:01:13.867
+Øvelse: følg kroppen noen steg, og forklar hva som fortsatt kan endre seg.

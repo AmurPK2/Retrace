@@ -33,6 +33,7 @@ export interface CoachProvider {
     messages: any[],
     onToken: (text: string) => void,
     signal: AbortSignal,
+    outputSchema?: object,
   ): Promise<string>;
   shutdown(): Promise<void>;
 }
@@ -342,10 +343,11 @@ export class LMStudioProvider implements CoachProvider {
     messages: any[],
     onToken: (text: string) => void,
     signal: AbortSignal,
+    outputSchema?: object,
   ) {
     if (!this.instance) await this.load();
-    let responseSchema: any = COACH_SCHEMA;
-    if (this.settings.structured) {
+    let responseSchema: any = outputSchema ?? COACH_SCHEMA;
+    if (this.settings.structured && !outputSchema) {
       try {
         const content = messages.at(-1).content;
         const raw =
@@ -366,11 +368,32 @@ export class LMStudioProvider implements CoachProvider {
         model: this.instance,
         messages,
         stream: true,
-        temperature: 0.3,
-        max_tokens: this.settings.maxTokens,
-        reasoning_effort: "none",
-        chat_template_kwargs: { enable_thinking: false },
-        ...(this.settings.structured
+        temperature:
+          this.settings.provider === "managed" &&
+          /9b/i.test(this.settings.model) &&
+          !/fast/i.test(this.settings.model)
+            ? 0.6
+            : 0.3,
+        max_tokens:
+          this.settings.maxTokens +
+          (this.settings.provider === "managed" &&
+          /9b/i.test(this.settings.model) &&
+          !/fast/i.test(this.settings.model)
+            ? 768
+            : 0),
+        reasoning_effort:
+          this.settings.provider === "managed" &&
+          /9b/i.test(this.settings.model) &&
+          !/fast/i.test(this.settings.model)
+            ? "medium"
+            : "none",
+        chat_template_kwargs: {
+          enable_thinking:
+            this.settings.provider === "managed" &&
+            /9b/i.test(this.settings.model) &&
+            !/fast/i.test(this.settings.model),
+        },
+        ...(this.settings.structured || outputSchema
           ? {
               response_format: {
                 type: "json_schema",

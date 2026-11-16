@@ -1,0 +1,51 @@
+WEBVTT
+
+00:00:00.300 --> 00:00:03.818
+Kroppen viser forskjellen mellom åpning og sluttpris.
+
+00:00:03.818 --> 00:00:06.833
+Vekene viser høyeste og laveste pris.
+
+00:00:06.833 --> 00:00:10.854
+I læringsoppgaven brukes ferdige candles med låste priser.
+
+00:00:10.854 --> 00:00:15.377
+En candle merket Pågående på charten utvikler seg fortsatt.
+
+00:00:15.377 --> 00:00:18.894
+Du vet ikke hvor den vil slutte.
+
+00:00:18.894 --> 00:00:23.920
+Bruk ferdige candles når regelen din krever en bekreftet sluttpris.
+
+00:00:24.925 --> 00:00:28.401
+I oppgaven brukes de to siste ferdige firetimerscandlene.
+
+00:00:28.401 --> 00:00:31.877
+Du ser de låste prisene før du svarer.
+
+00:00:31.877 --> 00:00:38.394
+C1 er referansen, C2 er neste ferdige candle, og C3 følger etter.
+
+00:00:38.394 --> 00:00:42.739
+En veke utenfor området er forskjellig fra en sluttpris utenfor.
+
+00:00:42.739 --> 00:00:50.125
+Manuell C1 C2-markering under Mer på charten er et eget hjelpemiddel når du spør
+coachen.
+
+00:00:51.133 --> 00:00:54.309
+Fire timer kan vise det større området.
+
+00:00:54.309 --> 00:00:59.752
+Femten, fem eller ett minutt viser hvordan prisen beveger seg inni området.
+
+00:00:59.752 --> 00:01:03.834
+Lavere tidsramme gir flere detaljer, men også mer støy.
+
+00:01:03.834 --> 00:01:10.185
+Øvelse: behold den samme linjen mens du bytter mellom fire timer og femten
+minutter.
+
+00:01:10.185 --> 00:01:13.813
+Skriv hvilken bekreftelse du vil kreve før inngang.

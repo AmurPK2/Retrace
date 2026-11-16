@@ -61,6 +61,7 @@ export function AssistantPanel({
   mode,
   setMode,
   send,
+  assess,
   sending,
   act,
   openSettings,
@@ -73,6 +74,7 @@ export function AssistantPanel({
   mode: string;
   setMode: (v: string) => void;
   send: () => Promise<void>;
+  assess: () => Promise<void>;
   sending: boolean;
   act: (command: any) => void;
   openSettings: () => void;
@@ -127,8 +129,8 @@ export function AssistantPanel({
     <section className="assistant-panel">
       <header className="assistant-header">
         <div>
-          <b>Chart Assistant</b>
-          <span>Local · private</span>
+          <b>Chart-coach</b>
+          <span>Leser chart, tegninger og tidsrammer</span>
         </div>
         <button
           className={`assistant-power ${enabled ? "on" : ""}`}
@@ -155,36 +157,39 @@ export function AssistantPanel({
               : ""}
         </span>
         <button
-          title="Assistant settings"
-          aria-label="Assistant settings"
+          title="Coach-innstillinger"
+          aria-label="Coach-innstillinger"
           onClick={openSettings}
         >
           <Settings2 size={13} />
         </button>
       </div>
+      <p className="assistant-note coach-limitation">
+        Coachen kan misforstå frie strategiregler. Kontroller begrunnelsen mot
+        candlene og nivåene; et svar er ingen bekreftelse på at en handel er
+        god.
+      </p>
       <div className="assistant-conversation" ref={conversation}>
         {!state.session?.chat.length && (
           <div className="assistant-empty">
             <MessageSquare size={22} />
-            <h3>A second look at your chart.</h3>
-            <p>Ask about structure, risk or your trade plan.</p>
+            <h3>Et nytt blikk på charten.</h3>
+            <p>Spør om candles, risiko eller planen din.</p>
             <button
               onClick={() => {
                 setMode("Check setup");
-                setDraft("What is missing from my trade plan?");
+                setDraft("Hva mangler i handelsplanen min?");
               }}
             >
-              What am I missing?
+              Hva mangler?
             </button>
             <button
               onClick={() => {
                 setMode("Give a hint");
-                setDraft(
-                  "Give one qualitative observation about the current structure.",
-                );
+                setDraft("Gi én konkret observasjon om strukturen på charten.");
               }}
             >
-              Review structure
+              Se på strukturen
             </button>
           </div>
         )}
@@ -203,15 +208,50 @@ export function AssistantPanel({
             </header>
             {m.status === "generating" ? (
               <p className="assistant-typing">
-                Checking the replay snapshot<span>…</span>
+                Kontrollerer replay-data<span>…</span>
               </p>
             ) : (
               <Answer text={messageBody(m)} />
             )}
-            {m.evidence && <p className="assistant-note">{m.evidence.label ? m.evidence.label + " · " : ""}{m.evidence.decisionImage ? "Decision chart + " : ""}{m.evidence.currentImage ? "current chart + " : ""}saved chart data{m.evidence.tradeId && !m.evidence.decisionImage ? " · decision image not analysed" : ""}</p>}
-            {m.historyAnswer && <p className="assistant-note">From this session’s saved trade history.</p>}
-            {m.evidenceFallback && <p className="assistant-note">Saved-data reply · an AI draft could not be verified.</p>}
-            {m.groundingFiltered && (
+            {m.evidence && (
+              <p className="assistant-note">
+                {m.evidence.label ? m.evidence.label + " · " : ""}
+                {m.evidence.decisionImage ? "Decision chart + " : ""}
+                {m.evidence.currentImage ? "current chart + " : ""}saved chart
+                data
+                {m.evidence.tradeId && !m.evidence.decisionImage
+                  ? " · decision image not analysed"
+                  : ""}
+              </p>
+            )}
+            {m.role === "assistant" &&
+              m.status === "complete" &&
+              !m.savedFacts &&
+              !m.evidenceFallback &&
+              !m.historyAnswer && (
+                <p className="assistant-note">
+                  Eksperimentell lokal modellvurdering · kan inneholde feil selv
+                  etter kontroll.
+                </p>
+              )}
+            {m.savedFacts && (
+              <p className="assistant-note">
+                Beregnet forklaring fra lagrede data og veiledning · ingen
+                modellgenerering.
+              </p>
+            )}
+            {m.historyAnswer && (
+              <p className="assistant-note">
+                Fra øktens lagrede handelshistorikk.
+              </p>
+            )}
+            {m.evidenceFallback && (
+              <p className="assistant-note">
+                Reserveforklaring fra lagrede data · modellsvaret kunne ikke
+                verifiseres.
+              </p>
+            )}
+            {false && m.groundingFiltered && (
               <p className="assistant-note">
                 Unverified numerical sentences omitted.
               </p>
@@ -226,47 +266,80 @@ export function AssistantPanel({
         ))}
       </div>
       <div className="assistant-compose">
-        <label className="assistant-trade-target"><span>Question refers to</span>
-          <select aria-label="Trade to review" value={tradeId} onChange={e => setTradeId(e.target.value)}>
-            <option value="auto">Auto · latest trade for reviews</option>
-            <option value="chart">Current chart / draft</option>
-            {state.session && sessionTrades(state.session).slice(0, 30).map(t => <option key={t.id} value={t.id}>{t.side.toUpperCase()} @ {t.entry.toFixed(3)} · {new Date(t.opened).toLocaleString("en-GB", { timeZone: state.session!.layout.timezone, day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} · {t.status}</option>)}
-          </select>
-        </label>
-        <div className="assistant-compose-options">
-          <select
-            aria-label="Assistant mode"
-            value={mode}
-            onChange={(e) => setMode(e.target.value)}
-          >
-            <option>Check setup</option>
-            <option>Give a hint</option>
-            <option>Review trade</option>
-            <option>Open chat</option>
-          </select>
-          <button
-            title={
-              state.settings.vision
-                ? "Scan images for every question"
-                : "Auto scan: trade reviews, setup checks and hints use chart images"
-            }
-            aria-pressed={state.settings.vision}
-            className={state.settings.vision ? "image-on" : ""}
-            onClick={() =>
-              act({
-                type: "ai.settings",
-                value: { ...state.settings, vision: !state.settings.vision },
-              })
-            }
-          >
-            <Image size={14} />
-            {state.settings.vision ? "Always scan" : "Auto scan"}
-          </button>
-        </div>
+        <button
+          className="coach-assess"
+          disabled={!enabled || busy || !state.session}
+          title="Scanner chart, tegninger og tidsrammer og svarer direkte"
+          onClick={() => void assess()}
+        >
+          Vurder oppsettet
+        </button>
+        <details>
+          <summary>Tidligere trade eller avansert</summary>
+          <label className="assistant-trade-target">
+            <span>Spørsmålet gjelder</span>
+            <select
+              aria-label="Trade to review"
+              value={tradeId}
+              onChange={(e) => setTradeId(e.target.value)}
+            >
+              <option value="auto">Auto · siste handel ved gjennomgang</option>
+              <option value="chart">Synlig chart / utkast</option>
+              {state.session &&
+                sessionTrades(state.session)
+                  .slice(0, 30)
+                  .map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.side.toUpperCase()} @ {t.entry.toFixed(3)} ·{" "}
+                      {new Date(t.opened).toLocaleString("en-GB", {
+                        timeZone: state.session!.layout.timezone,
+                        day: "2-digit",
+                        month: "short",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      · {t.status}
+                    </option>
+                  ))}
+            </select>
+          </label>
+          <div className="assistant-compose-options">
+            <select
+              aria-label="Assistant mode"
+              value={mode}
+              onChange={(e) => setMode(e.target.value)}
+            >
+              <option>Check setup</option>
+              <option>Give a hint</option>
+              <option>Review trade</option>
+              <option>Open chat</option>
+            </select>
+            <button
+              title={
+                state.settings.vision
+                  ? "Scan images for every question"
+                  : "Auto scan: trade reviews, setup checks and hints use chart images"
+              }
+              aria-pressed={state.settings.vision}
+              className={state.settings.vision ? "image-on" : ""}
+              onClick={() =>
+                act({
+                  type: "ai.settings",
+                  value: { ...state.settings, vision: !state.settings.vision },
+                })
+              }
+            >
+              <Image size={14} />
+              {state.settings.vision ? "Always scan" : "Auto scan"}
+            </button>
+          </div>
+        </details>
         <textarea
           aria-label="Message Chart Assistant"
           placeholder={
-            enabled ? "Ask about the chart…" : "Turn on the assistant to ask…"
+            enabled
+              ? "Spør om charten eller oppsettet ditt…"
+              : "Slå på coachen for å spørre…"
           }
           value={draft}
           rows={3}

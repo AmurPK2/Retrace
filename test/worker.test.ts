@@ -8,7 +8,7 @@ import { fromTicks } from "../src/core/bars";
 import { buildContext } from "../src/ai/context";
 const cache = path.resolve(".cache/test-databases");
 mkdirSync(cache, { recursive: true });
-function fixture() {
+function fixture(spread = 0.5) {
   const root = mkdtempSync(path.join(cache, "worker-")),
     store = new Store(root),
     base = Date.UTC(2026, 10, 2);
@@ -17,7 +17,7 @@ function fixture() {
       ticks = Array.from({ length: 60 }, (_, i) => ({
         t: hour + i * 60000,
         bid: 2000 + h + i / 100,
-        ask: 2000.5 + h + i / 100,
+        ask: 2000 + spread + h + i / 100,
       }));
     const c = store.writeTicks(
       "dukascopy",
@@ -41,7 +41,12 @@ function fixture() {
 }
 function worker(root: string) {
   const instance = new Worker(path.resolve("dist-electron/worker.cjs"), {
-    workerData: { root, project: path.resolve("."), parentPid: process.pid, autoSetup: false },
+    workerData: {
+      root,
+      project: path.resolve("."),
+      parentPid: process.pid,
+      autoSetup: false,
+    },
   });
   let id = 0;
   const pending = new Map<number, any>();
@@ -471,7 +476,7 @@ test("failed SQLite checkpoint is reported, transaction remains recoverable, ret
   }
 });
 
-test("automatic level orders ignore stale buy/stop selections and flip pending direction across price after restart", async () => {
+test("automatic level direction preserves absolute protection and invalid edits leave the same order intact after restart", async () => {
   const f = fixture();
   let w = worker(f.root);
   try {
@@ -494,8 +499,9 @@ test("automatic level orders ignore stale buy/stop selections and flip pending d
           strategy: "test",
         },
       });
-    await post("buy", bid + 5, bid + 3, bid + 9);
-    await post("sell", bid - 5, bid - 3, bid - 9);
+    await assert.rejects(post("buy", bid + 5, bid + 3, bid + 9), /SL must be/);
+    await post("buy", bid + 5, bid + 7, bid + 1);
+    await post("sell", bid - 5, bid - 7, bid - 1);
     let state = await w.call({ type: "state" });
     const [above, below] = state.session.broker.pending;
     assert.equal(above.side, "sell");
@@ -514,15 +520,40 @@ test("automatic level orders ignore stale buy/stop selections and flip pending d
     w = worker(f.root);
     state = await w.call({ type: "state" });
     assert.equal(state.session.broker.pending[0].automaticLevel, true);
+    await assert.rejects(
+      w.call({
+        type: "pending.edit",
+        id: above.id,
+        changes: { price: bid - 3 },
+      }),
+      /SL must be/,
+    );
+    const unchanged = await w.call({ type: "state" });
+    assert.deepEqual(
+      unchanged.session.broker.pending,
+      state.session.broker.pending,
+    );
     await w.call({
       type: "pending.edit",
       id: above.id,
-      changes: { price: bid - 3, lots: 0.01, sl: bid - 1, tp: bid - 7 },
+      changes: { price: bid + 4 },
+    });
+    const entryOnly = await w.call({ type: "state" });
+    const same = entryOnly.session.broker.pending.find(
+      (p: any) => p.id === above.id,
+    );
+    assert.equal(same.sl, bid + 7);
+    assert.equal(same.tp, bid + 1);
+    await w.call({
+      type: "pending.edit",
+      id: above.id,
+      changes: { price: bid - 3, sl: bid - 5, tp: bid + 1 },
     });
     state = await w.call({ type: "state" });
     const moved = state.session.broker.pending.find(
       (p: any) => p.price === bid - 3,
     );
+    assert.equal(moved.id, above.id);
     assert.equal(moved.side, "buy");
     assert.equal(moved.kind, "limit");
     assert.equal(moved.sl, bid - 5);
@@ -548,6 +579,325 @@ test("automatic level orders ignore stale buy/stop selections and flip pending d
     assert.deepEqual(
       restored.session.broker.pending,
       remaining.session.broker.pending,
+    );
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
+
+test("new challenge blocks price advancement until committed, saves answer before reveal, and restores it exactly", async () => {
+  const f = fixture();
+  let w = worker(f.root);
+  try {
+    await w.call({
+      type: "sessions.new",
+      timestamp: f.base + 25 * 3600000,
+      challenge: "candles",
+    });
+    let s = (await w.call({ type: "state" })).session;
+    const id = s.learning.active.id,
+      cutoff = s.tick.t;
+    await assert.rejects(
+      w.call({ type: "step", kind: "candle" }),
+      /Lås svaret/,
+    );
+    await assert.rejects(w.call({ type: "play", value: true }), /Lås svaret/);
+    await assert.rejects(
+      w.call({ type: "challenge.reveal", id }),
+      /Lock an answer/,
+    );
+    const high = s.learning.active.htf
+      .filter((b: any) => (b.time + 14400) * 1000 <= cutoff)
+      .at(-1).high;
+    await w.call({
+      type: "challenge.commit",
+      id,
+      value: { reason: "Ferdig candle med synlig topp før start", value: high },
+    });
+    const committed = (await w.call({ type: "state" })).session.learning.active;
+    assert.equal(committed.cutoff, cutoff);
+    assert.equal(committed.revealedAt, undefined);
+    await w.call({ type: "shutdown" });
+    await w.instance.terminate();
+    w = worker(f.root);
+    assert.deepEqual(
+      (await w.call({ type: "state" })).session.learning.active,
+      committed,
+    );
+    await w.call({ type: "challenge.reveal", id });
+    s = (await w.call({ type: "state" })).session;
+    assert.ok(s.tick.t > cutoff);
+    assert.deepEqual(s.learning.active.answer, committed.answer);
+    assert.deepEqual(s.learning.active.checks, committed.checks);
+    await w.call({ type: "challenge.next" });
+    s = (await w.call({ type: "state" })).session;
+    assert.equal(s.learning.history.length, 1);
+    assert.equal(s.learning.active.stage, "pair");
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
+
+test("pending revisions preserve original decisions and next-candle execution processes the intermediate fill and stop", async () => {
+  const f = fixture(0.005),
+    w = worker(f.root);
+  try {
+    await w.call({
+      type: "sessions.new",
+      timestamp: f.base + 25 * 3600000 + 7 * 60000,
+    });
+    let s = (await w.call({ type: "state" })).session;
+    const bid = s.tick.bid;
+    await w.call({
+      type: "order",
+      order: {
+        side: "sell",
+        kind: "limit",
+        price: bid + 0.05,
+        sl: bid + 0.2,
+        tp: bid - 1,
+        lots: 0.01,
+        tags: [],
+        thesis: "revision test",
+        strategy: "test",
+        setupId: "two-entry-idea",
+      },
+    });
+    s = (await w.call({ type: "state" })).session;
+    const id = s.broker.pending[0].id;
+    await w.call({
+      type: "pending.edit",
+      id,
+      changes: { price: bid + 0.02, sl: bid + 0.04 },
+    });
+    const st = new Store(f.root);
+    const rows = st.db
+      .prepare("SELECT id,payload FROM decisions WHERE session=?")
+      .all(s.id);
+    st.close();
+    assert.equal(rows.length, 2);
+    const original = JSON.parse(String(rows.find((r) => r.id !== id)!.payload)),
+      revision = JSON.parse(String(rows.find((r) => r.id === id)!.payload));
+    assert.equal(original.proposal.entry, bid + 0.05);
+    assert.equal(revision.proposal.entry, bid + 0.02);
+    assert.equal(revision.proposal.sl, bid + 0.04);
+    await w.call({
+      type: "ui",
+      value: { layout: { ...s.layout, timeframe: "15m" } },
+    });
+    await w.call({ type: "step", kind: "candle" });
+    s = (await w.call({ type: "state" })).session;
+    assert.equal(s.broker.pending.length, 0);
+    assert.equal(s.broker.positions.length, 0);
+    assert.equal(s.broker.fills.length, 1);
+    const fill = s.broker.fills[0];
+    assert.equal(fill.positionId, id);
+    assert.equal(fill.setupId, "two-entry-idea");
+    assert.equal(fill.reason, "SL");
+    assert.ok(fill.opened < fill.closed && fill.closed < s.tick.t);
+    assert.ok(s.broker.seq >= 8);
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
+
+test("consecutive immediate coach answers release the task and do not require a downloaded model", async () => {
+  const f = fixture(),
+    w = worker(f.root);
+  try {
+    await w.call({ type: "sessions.new", timestamp: f.base + 25 * 3600000 });
+    let s = (await w.call({ type: "state" })).session;
+    for (const text of [
+      "Which timeframe should I mark for 15m?",
+      "Vurder oppsettet mitt med C1 og C2.",
+    ]) {
+      await w.call({
+        type: "ai.ask",
+        text,
+        cursor: s.broker.seq,
+        tradeId: "chart",
+      });
+      s = (await w.call({ type: "state" })).session;
+      assert.equal(s.chat.at(-1).status, "complete");
+      assert.equal(s.chat.at(-1).savedFacts, true);
+    }
+    assert.equal(s.chat.length, 4);
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
+
+test("independent drawing property edits do not reinstate hidden state or overwrite concurrent labels", async () => {
+  const f = fixture(),
+    w = worker(f.root);
+  try {
+    await w.call({ type: "sessions.new", timestamp: f.base + 25 * 3600000 });
+    const s = (await w.call({ type: "state" })).session;
+    const d = {
+      id: "atomic-object",
+      kind: "fib",
+      a: { time: s.tick.t / 1000 - 600, price: 2000 },
+      b: { time: s.tick.t / 1000, price: 2020 },
+      color: "#49d3c6",
+      locked: false,
+      label: "original",
+      levels: [0, 0.5, 1],
+      createdCursor: s.broker.seq,
+    };
+    await w.call({ type: "drawings", value: [d] });
+    await w.call({ type: "drawing.patch", id: d.id, patch: { hidden: true } });
+    await w.call({ type: "drawing.patch", id: d.id, patch: { hidden: false } });
+    await w.call({ type: "drawing.patch", id: d.id, patch: { locked: true } });
+    await w.call({
+      type: "drawing.patch",
+      id: d.id,
+      patch: { label: "renamed" },
+    });
+    const saved = (await w.call({ type: "state" })).session.drawings[0];
+    assert.equal(saved.hidden, false);
+    assert.equal(saved.locked, true);
+    assert.equal(saved.label, "renamed");
+    assert.deepEqual(saved.a, d.a);
+    await w.call({ type: "drawing.remove", id: d.id });
+    await w.call({ type: "drawing.undo" });
+    assert.deepEqual(
+      (await w.call({ type: "state" })).session.drawings[0],
+      saved,
+    );
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
+
+test("challenge can start in an existing session, preserves abandoned attempts and saves feedback across restart", async () => {
+  const f = fixture();
+  let w = worker(f.root);
+  try {
+    await w.call({ type: "sessions.new", timestamp: f.base + 25 * 3600000 });
+    let state = await w.call({ type: "state" });
+    const original = structuredClone(state.session);
+    await w.call({
+      type: "ai.settings",
+      value: { ...state.settings, enabled: false },
+    });
+    await w.call({ type: "challenge.start", stage: "frames" });
+    let s = (await w.call({ type: "state" })).session;
+    assert.equal(s.id, original.id);
+    assert.deepEqual(s.broker, original.broker);
+    assert.deepEqual(s.drawings, original.drawings);
+    assert.deepEqual(s.chat, original.chat);
+    assert.deepEqual(s.tick, original.tick);
+    const abandoned = s.learning.active.id;
+    await w.call({ type: "challenge.start", stage: "frames" });
+    s = (await w.call({ type: "state" })).session;
+    assert.equal(s.learning.history[0].id, abandoned);
+    await w.call({
+      type: "challenge.commit",
+      id: s.learning.active.id,
+      value: { value: 8, reason: "Jeg teller åtte perioder i fire timer." },
+    });
+    await w.call({ type: "challenge.feedback", id: s.learning.active.id });
+    s = (await w.call({ type: "state" })).session;
+    assert.equal(s.learning.active.feedback.assessment, "needs-practice");
+    assert.equal(s.learning.active.feedback.source, "checks");
+    await w.call({ type: "shutdown" });
+    await w.instance.terminate();
+    w = worker(f.root);
+    assert.deepEqual(
+      (await w.call({ type: "state" })).session.learning,
+      s.learning,
+    );
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
+
+test("interrupted challenge review recovers its answer and can return to free practice", async () => {
+  const f = fixture();
+  let w = worker(f.root);
+  try {
+    await w.call({ type: "sessions.new", timestamp: f.base + 25 * 3600000 });
+    await w.call({ type: "challenge.start", stage: "frames" });
+    let s = (await w.call({ type: "state" })).session;
+    await w.call({
+      type: "challenge.commit",
+      id: s.learning.active.id,
+      value: {
+        value: 16,
+        reason: "Jeg regner om fire timer til minutter og deler på femten.",
+      },
+    });
+    s = (await w.call({ type: "state" })).session;
+    await w.call({ type: "shutdown" });
+    await w.instance.terminate();
+    const store = new Store(f.root);
+    const saved = store.load(s.id)!;
+    saved.learning!.active.feedback!.status = "generating";
+    store.save(saved);
+    store.close();
+    w = worker(f.root);
+    let restored = (await w.call({ type: "state" })).session;
+    assert.equal(restored.learning.active.feedback.status, "complete");
+    assert.equal(restored.learning.active.feedback.source, "checks");
+    assert.deepEqual(restored.learning.active.answer, s.learning.active.answer);
+    await w.call({ type: "challenge.start", stage: "candles" });
+    restored = (await w.call({ type: "state" })).session;
+    const id = restored.learning.active.id;
+    await assert.rejects(
+      w.call({ type: "step", kind: "candle" }),
+      /Lås svaret/,
+    );
+    await w.call({ type: "challenge.end" });
+    await w.call({ type: "step", kind: "candle" });
+    s = (await w.call({ type: "state" })).session;
+    assert.ok(s.learning.active.endedAt);
+    assert.equal(s.learning.active.id, id);
+    assert.equal(s.learning.active.answer, undefined);
+    assert.ok(s.tick.t > restored.tick.t);
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
+
+test("failed instrument data load preserves current session and future new-session dataset", async () => {
+  const f = fixture();
+  const store = new Store(f.root);
+  for (const chunk of store.chunks("dukascopy"))
+    store.putChunk({
+      ...chunk,
+      dataset: "dukascopy:EURAUD",
+      sha: "0".repeat(64),
+    });
+  store.close();
+  const w = worker(f.root);
+  try {
+    await w.call({ type: "sessions.new", timestamp: f.base + 25 * 3600000 });
+    const before = (await w.call({ type: "state" })).session;
+    await assert.rejects(
+      w.call({ type: "instrument", value: "EURAUD" }),
+      /Integrity failure/,
+    );
+    const after = (await w.call({ type: "state" })).session;
+    for (const key of ["id", "dataset", "tick", "broker", "drawings", "chat"])
+      assert.deepEqual(after[key], before[key]);
+    await w.call({ type: "sessions.new", timestamp: f.base + 26 * 3600000 });
+    assert.equal(
+      (await w.call({ type: "state" })).session.dataset,
+      "dukascopy",
     );
     await w.call({ type: "shutdown" });
   } finally {

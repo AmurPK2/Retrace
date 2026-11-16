@@ -269,7 +269,7 @@ test("limit draft automatically chooses side around the visible bid without subm
   assert.equal(limitSide(2000, 2000), "buy");
   assert.throws(() => limitSide(NaN, 2000));
 });
-test("automatic limit entry drag preserves risk/reward distances and flips SL/TP correctly with side", () => {
+test("ENTRY keeps absolute SL and TP prices, including a direction change", () => {
   const original = {
     side: "buy" as const,
     kind: "limit" as const,
@@ -281,12 +281,12 @@ test("automatic limit entry drag preserves risk/reward distances and flips SL/TP
   };
   const sell = moveDraftEntry(original, 2010, 2005);
   assert.equal(sell.side, "sell");
-  assert.equal(sell.sl, 2020);
-  assert.equal(sell.tp, 1990);
+  assert.equal(sell.sl, 1990);
+  assert.equal(sell.tp, 2020);
   const buy = moveDraftEntry(original, 1995, 2005);
   assert.equal(buy.side, "buy");
-  assert.equal(buy.sl, 1985);
-  assert.equal(buy.tp, 2015);
+  assert.equal(buy.sl, 1990);
+  assert.equal(buy.tp, 2020);
 });
 
 test("rectangle grips remain on the visible edges across compressed weekend time and reversed anchors", () => {
@@ -357,7 +357,7 @@ test("saved old theme names migrate without losing opacity or creating an undefi
   }
   assert.equal(
     migrateAppearance({ ...DEFAULT_APPEARANCE, preset: "__proto__" }).preset,
-    "cyber",
+    "accurate",
   );
   const accurate = migrateAppearance({
     ...DEFAULT_APPEARANCE,
