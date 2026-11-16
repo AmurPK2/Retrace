@@ -23,11 +23,13 @@ export function HTFCandles({
     [settings, setSettings] = useState(false);
   if (!c.enabled) return null;
   const candles = htfCandles(bars, cutoff, c.timeframe, c.count),
-    width = (c.width + c.gap) * candles.length + 115;
+    width = (c.width + c.gap) * candles.length + 115,
+    single = c.count === 1,
+    plotHeight = single ? 200 : 155;
   const low = Math.min(...candles.map((b) => b.low)),
     high = Math.max(...candles.map((b) => b.high)),
     span = Math.max(0.001, high - low);
-  const y = (p: number) => 22 + ((high - p) / span) * 155;
+  const y = (p: number) => 22 + ((high - p) / span) * plotHeight;
   return (
     <section
       className="htf-candles"
@@ -39,7 +41,7 @@ export function HTFCandles({
           title="Side candle settings"
           onClick={() => setSettings(!settings)}
         >
-          {c.timeframe} candles · UTC
+          {c.timeframe} {single ? "candle" : "candles"} · UTC
         </button>
         <button
           title="Hide side candles"
@@ -104,9 +106,13 @@ export function HTFCandles({
       )}
       <svg
         width={width}
-        height="222"
+        height={plotHeight + 67}
         role="img"
-        aria-label={c.timeframe + " candles at the replay cutoff"}
+        aria-label={
+          c.timeframe +
+          (single ? " developing candle" : " candles") +
+          " at the replay cutoff"
+        }
       >
         {candles.map((b, i) => {
           const x = 10 + i * (c.width + c.gap),
@@ -140,10 +146,10 @@ export function HTFCandles({
                 fillOpacity={b.closed ? 0.55 : 0.85}
                 stroke={color}
               />
-              <text x={x} y="196">
+              <text x={x} y={plotHeight + 41}>
                 {b.closed ? "Closed" : "Forming"}
               </text>
-              <text x={x} y="212">
+              <text x={x} y={plotHeight + 57}>
                 {b.closed
                   ? new Date(b.time * 1000).toISOString().slice(11, 16)
                   : countdown(b.remaining)}
@@ -169,7 +175,15 @@ export function HTFCandles({
           );
         })}
       </svg>
-      {!candles.length && <p>No verified candles at this time.</p>}
+      {!candles.length && (
+        <p>
+          {single
+            ? "Waiting for verified prices in the current " +
+              c.timeframe +
+              " candle."
+            : "No verified candles at this time."}
+        </p>
+      )}
     </section>
   );
 }
