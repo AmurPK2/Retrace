@@ -2,7 +2,7 @@ import { ChallengePanel } from "./components/ChallengePanel";
 import { CHALLENGES } from "./core/challenges";
 import { FibEditor } from "./components/FibEditor";
 import { INSTRUMENTS, instrumentForDataset } from "./core/instruments";
-import { HTFCandles } from "./components/HTFCandles";
+import { LearningHub } from "./components/LearningHub";
 import { DEFAULT_HTF } from "./core/htf";
 import { draftIssues, combinedPlanRisk } from "./core/order-validation";
 import {
@@ -631,8 +631,13 @@ export default function App() {
       setBusy(false);
     }
   };
-  const ask = async () => {
-    if (!session || !draft.trim() || sendingAI) return;
+  const ask = async (
+    request?: string,
+    modeOverride?: string,
+    targetOverride?: string,
+  ) => {
+    const question = request ?? draft;
+    if (!session || !question.trim() || sendingAI) return;
     setSendingAI(true);
     try {
       await call({ type: "play", value: false });
@@ -643,10 +648,10 @@ export default function App() {
       );
       await call({
         type: "ai.ask",
-        text: `${chatMode}: ${draft}`,
+        text: (modeOverride ?? chatMode) + ": " + question,
         cursor: chart.current?.cursor(),
         screenshot: await chart.current?.capture(),
-        tradeId: reviewTradeId,
+        tradeId: targetOverride ?? reviewTradeId,
         visibleWindow: chart.current?.visibleWindow(),
         proposal: previewActive
           ? {
@@ -996,76 +1001,18 @@ export default function App() {
             </div>
             <div className="chart-control-actions">
               <button
+                aria-label="Ny ordre"
                 className="new-draft-button"
                 disabled={!session}
                 onClick={() => void newOrderDraft()}
-                title="Make order · drag above price for Sell level and below for Buy level. Direction is automatic."
+                title="Lag et utkast. Du kan også høyreklikke på en pris i charten."
               >
-                Make order
+                <span>+</span> Ny ordre
               </button>
-              <button
-                className={"telegram-toggle " + (feedOpen ? "active" : "")}
-                title="Telegram feed"
-                onClick={() => {
-                  setFeedOpen(!feedOpen);
-                  if (!session?.layout.ai) layout({ ai: true });
-                }}
-              >
-                <Send size={14} />
-                Telegram
-                {feedCount > 0 && (
-                  <small className="feed-count">
-                    {Math.min(99, feedCount)}
-                  </small>
-                )}
-              </button>
-              <button
-                className={
-                  "study-toggle " + (sidebar === "study" ? "active" : "")
-                }
-                disabled={!session}
-                title="RR Study · source-linked lessons and replay exercises"
-                onClick={() => {
-                  setSidebar("study");
-                  if (!session?.layout.ai) layout({ ai: true });
-                  if (state.playing) act({ type: "play", value: false });
-                }}
-              >
-                <BookOpen size={14} /> RR Study
-              </button>
-              <button
-                className="quiet"
-                onClick={() => setModal("indicators")}
-                disabled={!session}
-              >
-                <Activity size={14} />
-                Indicators
-              </button>
-              <IconButton
-                title="Two synchronized charts"
-                active={session?.layout.dual}
-                onClick={() => layout({ dual: !session?.layout.dual })}
-                disabled={!session}
-              >
-                <Layers size={16} />
-              </IconButton>
-              <IconButton
-                title="Fit chart"
-                onClick={() => chart.current?.fit()}
-              >
-                <Maximize2 size={15} />
-              </IconButton>
-              <button
-                className="quiet"
-                title="Show all loaded past history. Use Fit chart to zoom back in."
-                onClick={() => chart.current?.overview()}
-                disabled={!session}
-              >
-                All history
-              </button>
-
               <button
                 className="toolbar-button"
+                aria-pressed={session?.layout.htf?.enabled ?? true}
+                title="Vis én pågående 4-timers candle på chartets prisskala"
                 onClick={() =>
                   layout({
                     htf: {
@@ -1076,42 +1023,158 @@ export default function App() {
                   })
                 }
               >
-                HTF candles
+                4H-candle
               </button>
               <button
                 className="toolbar-button"
+                title="Forklaring, video og praktisk 4H-øvelse"
                 onClick={() => {
-                  layout({ timeframe: "4H" });
-                  setStudyPicking(true);
+                  setModal("learn4h");
+                  act({ type: "play", value: false });
                 }}
               >
-                Marker C1/C2
+                <BookOpen size={14} /> Lær 4H
               </button>
               <button
-                className="toolbar-button"
-                onClick={() => setTicketOpen(!ticketOpen)}
-                aria-pressed={ticketOpen}
+                className="toolbar-button challenge-entry"
+                title="Start eller fortsett utfordringer i denne økten"
+                onClick={() => {
+                  setModal("challenge");
+                  act({ type: "play", value: false });
+                }}
               >
-                Order
+                Utfordringer
+                {session?.learning
+                  ? " · " +
+                    (CHALLENGES.findIndex(
+                      (c) => c[0] === session.learning!.active.stage,
+                    ) +
+                      1) +
+                    "/10"
+                  : ""}
               </button>
               <button
                 className="toolbar-button"
+                title="Finn, navngi, skjul eller lås tegningene dine"
                 onClick={() => setObjectsOpen(!objectsOpen)}
                 aria-pressed={objectsOpen}
               >
-                Objects {session?.drawings.length ?? 0}
+                Tegninger {session?.drawings.length ?? 0}
               </button>
-              {session && sessionTrades(session).length > 0 && (
-                <button
-                  className="toolbar-button"
-                  title="Show the latest trade's entry and exit arrows. Older trades: History → Show on chart."
-                  onClick={() => locateTrade(sessionTrades(session)[0].id)}
+              <details className="chart-more">
+                <summary title="Flere chartverktøy, leksjoner og hjelp">
+                  Mer <ChevronDown size={13} />
+                </summary>
+                <div
+                  role="menu"
+                  onClick={(e) => {
+                    const b = (e.target as Element).closest("button");
+                    if (b)
+                      e.currentTarget
+                        .closest("details")
+                        ?.removeAttribute("open");
+                  }}
                 >
-                  Trades {sessionTrades(session).length}
-                </button>
-              )}
+                  <button role="menuitem" onClick={() => setModal("help")}>
+                    Hva gjør knappene? <small>Forklaring og snarveier</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setSidebar("study");
+                      layout({ ai: true });
+                      act({ type: "play", value: false });
+                    }}
+                  >
+                    Leksjoner og strategi{" "}
+                    <small>C1/C2, kilder og egne regler</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      layout({ timeframe: "4H" });
+                      setStudyPicking(true);
+                    }}
+                  >
+                    Velg C1/C2 <small>Pek ut candlene AI-en skal vurdere</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => setModal("indicators")}
+                  >
+                    Indikatorer{" "}
+                    <small>Legg til for eksempel EMA eller RSI</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => layout({ dual: !session?.layout.dual })}
+                  >
+                    To charts <small>Se to tidsrammer samtidig</small>
+                  </button>
+                  <button role="menuitem" onClick={() => chart.current?.fit()}>
+                    Tilpass chart{" "}
+                    <small>Tilbakestill zoom til replay-punktet</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => chart.current?.overview()}
+                  >
+                    Vis hele historikken{" "}
+                    <small>Zoom ut til alle lastede candles</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => setTicketOpen(!ticketOpen)}
+                  >
+                    Ordredetaljer <small>Åpne det kompakte ordrepanelet</small>
+                  </button>
+                  <button
+                    role="menuitem"
+                    onClick={() => {
+                      setFeedOpen(true);
+                      layout({ ai: true });
+                    }}
+                  >
+                    Telegram <small>Åpne dine egne kilder</small>
+                  </button>
+                  {session && sessionTrades(session).length > 0 && (
+                    <button
+                      role="menuitem"
+                      onClick={() => locateTrade(sessionTrades(session)[0].id)}
+                    >
+                      Vis siste trade{" "}
+                      <small>Finn inngang og utgang på charten</small>
+                    </button>
+                  )}
+                </div>
+              </details>
             </div>
           </div>
+          {(tool !== "select" || studyPicking) && (
+            <div className="tool-explainer" role="status">
+              <b>
+                {studyPicking
+                  ? "Velg C1"
+                  : toolbar.find((t) => t[0] === tool)?.[1]}
+              </b>
+              <span>
+                {studyPicking
+                  ? "Klikk på den første candlen. Neste ferdige candle blir C2."
+                  : tool === "horizontal"
+                    ? "Klikk én gang ved ønsket pris."
+                    : "Velg to punkter eller dra. Shift låser linjer vannrett/loddrett. Esc avslutter."}
+              </span>
+              <button
+                onClick={() => {
+                  setTool("select");
+                  setStudyPicking(false);
+                  setSelected(null);
+                }}
+              >
+                Avslutt
+              </button>
+            </div>
+          )}
           {objectsOpen && session && (
             <div className="object-list" aria-label="Drawing objects">
               <header>
@@ -1235,15 +1298,14 @@ export default function App() {
           <div className={"chart-area " + (session?.layout.dual ? "dual" : "")}>
             {session ? (
               <>
-                <HTFCandles
-                  precision={session.broker.specs.precision}
-                  bars={state.htfBars ?? []}
-                  cutoff={session.tick.t}
-                  value={session.layout.htf}
-                  save={(htf) => layout({ htf })}
-                />
                 <Chart
                   ref={chart}
+                  htfBars={state.htfBars ?? []}
+                  onHTFChange={(htf) => layout({ htf })}
+                  onLearnHTF={() => {
+                    setModal("learn4h");
+                    if (state.playing) act({ type: "play", value: false });
+                  }}
                   bars={state.bars}
                   appearance={look}
                   picker={picker}
@@ -1396,28 +1458,33 @@ export default function App() {
               </div>
             )}
           </div>
-          {session?.learning && (
-            <button
-              className="challenge-open"
-              onClick={() => setModal("challenge")}
-            >
-              Utfordring ·{" "}
-              {CHALLENGES.findIndex(
-                (c) => c[0] === session.learning!.active.stage,
-              ) + 1}
-              /10
-              {!session.learning.active.answer ? " · svar før avsløring" : ""}
-            </button>
-          )}
-          {modal === "challenge" && session?.learning && (
+          {(modal === "challenge" || modal === "learn4h") && (
             <Modal
-              title="Lær steg for steg / Practice challenge"
+              wide
+              title={
+                modal === "challenge"
+                  ? "Utfordringer og progresjon"
+                  : "Lær 4H-candles"
+              }
               onClose={() => setModal("")}
             >
-              <ChallengePanel
-                key={session.learning.active.id}
-                learning={session.learning}
-                call={window.replay.call}
+              <LearningHub
+                state={state}
+                initial={modal === "challenge" ? "challenges" : "4h"}
+                call={call}
+                showChart={(timeframe) => {
+                  layout({
+                    timeframe,
+                    htf: {
+                      ...DEFAULT_HTF,
+                      ...session?.layout.htf,
+                      enabled: true,
+                      count: 1,
+                      timeframe: "4H",
+                    },
+                  });
+                  setModal("");
+                }}
               />
             </Modal>
           )}
@@ -1952,7 +2019,7 @@ export default function App() {
                     if (state.playing) act({ type: "play", value: false });
                   }}
                 >
-                  Study
+                  Læring
                 </button>
               </nav>
               {sidebar === "study" ? (
@@ -1982,7 +2049,14 @@ export default function App() {
                   setDraft={setDraft}
                   mode={chatMode}
                   setMode={setChatMode}
-                  send={ask}
+                  send={() => ask()}
+                  assess={() =>
+                    ask(
+                      "Vurder oppsettet mitt på den synlige charten. Les tegningene, innganger, SL og TP og relevant høyere tidsramme. Forklar hva som er støttet av mine regler, hva som mangler, og ett neste læringspunkt.",
+                      "Check setup",
+                      "chart",
+                    )
+                  }
                   sending={sendingAI}
                   act={act}
                   openSettings={() => setModal("settings")}
