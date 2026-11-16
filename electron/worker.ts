@@ -1,4 +1,11 @@
 import {
+  challengeSnapshot,
+  challengeFallback,
+  challengeFeedbackSchema,
+  parseChallengeFeedback,
+  CHALLENGE_COACH_SYSTEM,
+} from "../src/ai/challenge-feedback";
+import {
   CHALLENGES,
   beginChallenge,
   commitChallenge,
@@ -155,6 +162,20 @@ store.db.exec(
   "CREATE TABLE IF NOT EXISTS decisions(session TEXT,id TEXT,cutoff INTEGER,payload TEXT,PRIMARY KEY(session,id));",
 );
 store.set("cleanExit", false);
+function recoverChallenge(s: NonNullable<Replay["session"]>) {
+  if (
+    s.learning?.active.answer &&
+    s.learning.active.feedback?.status === "generating"
+  ) {
+    s.learning.active.feedback = challengeFallback(
+      s.learning.active,
+      s.learning.language === "nb",
+      s.learning.language === "nb"
+        ? "Forrige AI-vurdering ble avbrutt. Svaret og faktasjekken er bevart; prøv AI igjen når du vil."
+        : "The previous AI review was interrupted. Your answer and checks are preserved; retry when ready.",
+    );
+  }
+}
 const previous = store.meta<string>("lastSession", "");
 if (previous) {
   try {
@@ -162,6 +183,7 @@ if (previous) {
     if (s) {
       for (const m of s.chat)
         if (m.status === "generating") m.status = "interrupted";
+      recoverChallenge(s);
       replay.setSession(s);
       s.status = recovered
         ? "Recovered the last transaction after an unexpected shutdown. Replay is paused."
@@ -544,6 +566,7 @@ async function dispatch(c: Command): Promise<any> {
       {
         const next = store.load(z.string().parse(c.id));
         if (!next) throw Error("Session not found.");
+        recoverChallenge(next);
         replay.setSession(next);
         dataset = next.dataset;
         store.set("activeDataset", dataset);
@@ -641,6 +664,7 @@ async function dispatch(c: Command): Promise<any> {
         ...imported.broker.fills,
       ])
         if (p.screenshot) p.screenshot = imageMap.get(p.screenshot);
+      recoverChallenge(imported);
       replay.setSession(imported);
       if (importedProgress) {
         rrProgress = {
@@ -657,6 +681,152 @@ async function dispatch(c: Command): Promise<any> {
       }
       save();
       publish();
+      return;
+    }
+    case "challenge.end": {
+      await cancel();
+      if (s?.learning) {
+        s.learning.active.endedAt = Date.now();
+        save();
+        publish();
+      }
+      return;
+    }
+    case "challenge.start": {
+      if (!s) throw Error("Åpne en økt først.");
+      const stage = z
+        .enum(CHALLENGES.map((x) => x[0]) as [ChallengeId, ...ChallengeId[]])
+        .parse(c.stage);
+      playing = false;
+      if (s.learning?.active.feedback?.status === "generating")
+        throw Error("Vent til coachen er ferdig, eller stopp AI-svaret først.");
+      const history = s.learning
+        ? [...s.learning.history, structuredClone(s.learning.active)]
+        : [];
+      s.learning = {
+        active: beginChallenge(
+          s,
+          replay.bars(s.layout.timeframe),
+          replay.bars("4H"),
+          stage,
+        ),
+        history,
+        language: s.learning?.language ?? "nb",
+      };
+      save();
+      publish();
+      return;
+    }
+    case "challenge.feedback": {
+      if (!s?.learning?.active.answer || s.learning.active.id !== c.id)
+        throw Error("Lås svaret på oppgaven først.");
+      if (generating)
+        throw Error("Coachen jobber allerede. Vent eller stopp svaret.");
+      const attempt = s.learning.active,
+        nb = s.learning.language === "nb",
+        evidence = challengeSnapshot(attempt, nb);
+      const fallback = challengeFallback(attempt, nb);
+      if (!settings.enabled || settings.profile === "gaming") {
+        attempt.feedback = {
+          ...fallback,
+          note: nb
+            ? "Slå på AI for en vurdering av begrunnelsen."
+            : "Enable AI for reasoning feedback.",
+        };
+        save();
+        publish();
+        return;
+      }
+      playing = false;
+      attempt.feedback = { ...fallback, status: "generating", source: "model" };
+      controller = new AbortController();
+      const signal = controller.signal,
+        started = performance.now();
+      ai = {
+        ...ai,
+        state: "generating",
+        message: "Vurderer det låste oppgavesvaret.",
+      };
+      save();
+      publish();
+      generating = (async () => {
+        await Promise.resolve();
+        let feedback = fallback;
+        try {
+          const p = getProvider();
+          if (p.instance && p.settings.context < 8192) await p.unload();
+          p.settings = {
+            ...settings,
+            structured: false,
+            maxTokens: 900,
+            context: Math.max(8192, settings.context),
+          };
+          if (!p.instance) await p.load();
+          const messages = [
+            { role: "system", content: CHALLENGE_COACH_SYSTEM },
+            { role: "user", content: JSON.stringify(evidence) },
+          ];
+          let result = await p.chat(
+            messages,
+            () => {},
+            signal,
+            challengeFeedbackSchema(attempt),
+          );
+          try {
+            feedback = parseChallengeFeedback(result, attempt, nb);
+          } catch (error) {
+            result = await p.chat(
+              [
+                ...messages,
+                { role: "assistant", content: result },
+                {
+                  role: "user",
+                  content:
+                    "Correct the response using only the frozen evidence. Return the required JSON. Validation problem: " +
+                    String(error),
+                },
+              ],
+              () => {},
+              signal,
+              challengeFeedbackSchema(attempt),
+            );
+            feedback = parseChallengeFeedback(result, attempt, nb);
+          }
+          ai = {
+            ...ai,
+            state: "ready",
+            message: "Veiledningen er lagret.",
+            latency: performance.now() - started,
+          };
+        } catch (error) {
+          store.set("challengeLastError", {
+            at: Date.now(),
+            message: String(error).slice(0, 600),
+          });
+          feedback = {
+            ...fallback,
+            note: signal.aborted
+              ? nb
+                ? "AI-vurderingen ble stoppet. Faktasjekken er bevart."
+                : "AI review stopped. Factual checks are preserved."
+              : nb
+                ? "AI-svaret kunne ikke bekreftes. Den konkrete faktasjekken er vist; du kan prøve AI igjen."
+                : "The AI draft could not be verified. Factual feedback is shown; you can retry AI.",
+          };
+          ai = { ...ai, state: "ready", message: feedback.note ?? "" };
+        } finally {
+          const saved = [
+            ...(s.learning?.history ?? []),
+            ...(s.learning ? [s.learning.active] : []),
+          ].find((x) => x.id === attempt.id);
+          if (saved) saved.feedback = feedback;
+          store.save(s);
+          idle = Date.now();
+          generating = null;
+          controller = null;
+          publish();
+        }
+      })();
       return;
     }
     case "challenge.language":
@@ -689,6 +859,10 @@ async function dispatch(c: Command): Promise<any> {
         s.learning.active,
         value,
         s,
+        s.learning.language === "nb",
+      );
+      s.learning.active.feedback = challengeFallback(
+        s.learning.active,
         s.learning.language === "nb",
       );
       save();
@@ -852,7 +1026,11 @@ async function dispatch(c: Command): Promise<any> {
       return attempt.id;
     }
     case "study.reveal": {
-      if (s?.learning && !s.learning.active.answer)
+      if (
+        s?.learning &&
+        !s.learning.active.endedAt &&
+        !s.learning.active.answer
+      )
         throw Error("Lock your challenge answer before revealing.");
       if (!s?.study?.range || !s.study.activeId)
         throw Error("Save your plan before revealing C3.");
@@ -949,7 +1127,12 @@ async function dispatch(c: Command): Promise<any> {
     }
     case "play":
       if (c.value) await cancel();
-      if (c.value && s?.learning && !s.learning.active.answer)
+      if (
+        c.value &&
+        s?.learning &&
+        !s.learning.active.endedAt &&
+        !s.learning.active.answer
+      )
         throw Error("Lås svaret i Utfordring før du viser senere priser.");
       if (!s) throw Error("Select a session first.");
       playing = Boolean(c.value);
@@ -970,7 +1153,11 @@ async function dispatch(c: Command): Promise<any> {
       return;
     case "step":
       await cancel();
-      if (s?.learning && !s.learning.active.answer)
+      if (
+        s?.learning &&
+        !s.learning.active.endedAt &&
+        !s.learning.active.answer
+      )
         throw Error("Lås svaret i Utfordring før du viser senere priser.");
       if (!s) throw Error("Select a session first.");
       playing = false;
@@ -1445,11 +1632,9 @@ async function dispatch(c: Command): Promise<any> {
       }));
     }
     case "instrument": {
-      const id = z.enum(["XAUUSD", "EURAUD", "NAS100", "NQ"]).parse(c.value);
+      const id = z.enum(["XAUUSD", "EURAUD", "NAS100"]).parse(c.value);
       if (!INSTRUMENTS[id].available)
-        throw Error(
-          "NQ futures requires licensed contract tick data. No continuous or CFD substitute is supplied.",
-        );
+        throw Error("Instrumentet er ikke tilgjengelig.");
       await cancel();
       await stopImport();
       playing = false;
@@ -1460,8 +1645,10 @@ async function dispatch(c: Command): Promise<any> {
         .list()
         .map((a) => store.load(String(a.id)))
         .find((a) => a?.dataset === dataset);
-      if (existing) replay.setSession(existing);
-      else {
+      if (existing) {
+        recoverChallenge(existing);
+        replay.setSession(existing);
+      } else {
         replay.session = null;
         if (replay.eligible(dataset).length) replay.newSession(dataset);
         else startImport({ instrument: id, starter: true });

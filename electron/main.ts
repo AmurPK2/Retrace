@@ -356,6 +356,9 @@ else {
 }
 const allowed = new Set([
   "instrument",
+  "challenge.end",
+  "challenge.start",
+  "challenge.feedback",
   "challenge.language",
   "challenge.commit",
   "challenge.reveal",
