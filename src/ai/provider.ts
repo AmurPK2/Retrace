@@ -33,6 +33,7 @@ export interface CoachProvider {
     messages: any[],
     onToken: (text: string) => void,
     signal: AbortSignal,
+    outputSchema?: object,
   ): Promise<string>;
   shutdown(): Promise<void>;
 }
@@ -342,10 +343,11 @@ export class LMStudioProvider implements CoachProvider {
     messages: any[],
     onToken: (text: string) => void,
     signal: AbortSignal,
+    outputSchema?: object,
   ) {
     if (!this.instance) await this.load();
-    let responseSchema: any = COACH_SCHEMA;
-    if (this.settings.structured) {
+    let responseSchema: any = outputSchema ?? COACH_SCHEMA;
+    if (this.settings.structured && !outputSchema) {
       try {
         const content = messages.at(-1).content;
         const raw =
@@ -391,7 +393,7 @@ export class LMStudioProvider implements CoachProvider {
             /9b/i.test(this.settings.model) &&
             !/fast/i.test(this.settings.model),
         },
-        ...(this.settings.structured
+        ...(this.settings.structured || outputSchema
           ? {
               response_format: {
                 type: "json_schema",
