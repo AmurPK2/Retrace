@@ -1,7 +1,7 @@
+import { assessmentReply } from "./assessment";
 import { factualChartHint } from "../core/trade-evidence";
 import type { buildContext } from "./context";
 import { replyLanguage } from "./intent";
-import { draftIssues, combinedPlanRisk } from "../core/order-validation";
 export function coachRuleIssue(text: string): string | null {
   if (
     /(?:stop|sl).{0,55}(?:must|always|use|skal|må).{0,60}(?:4h|same|samme).{0,30}(?:close|sluttpris)|(?:use|bruk).{0,30}(?:4h|same|samme).{0,30}(?:close|sluttpris).{0,35}(?:stop|sl)/i.test(
@@ -50,7 +50,9 @@ export function coachEvidenceReply(
       c.strategy.text,
     );
   if (geometryOnly && plans.length) {
-    const valid = plans.every((p) => !p.issues.length);
+    const valid = plans.every(
+      (p) => !p.issues.length && p.sl !== undefined && p.tp !== undefined,
+    );
     const details = plans
       .map(
         (p, i) =>
@@ -106,110 +108,7 @@ export function coachEvidenceReply(
               " with configured costs. ") +
           "Defining levels and size before execution is useful. This exercise explicitly requires no candle confirmation, so a breakout or sweep is not an additional entry requirement. Valid geometry does not predict whether price will rise or fall. Next: compare the combined amount with your written budget and correct any invalid levels before confirming the draft.";
   }
-  const issues = plans.flatMap((p) => draftIssues(p, c.assumptions));
-  const range = c.selectedRange;
-  const risk = c.planFacts.combinedRisk;
-  const detail = plans
-    .map((p, i) => {
-      const rr = p.rr ?? NaN;
-      return (
-        (nb ? "Inngang " : "Entry ") +
-        (i + 1) +
-        ": " +
-        p.side.toUpperCase() +
-        " " +
-        p.entry +
-        ", SL " +
-        p.sl +
-        ", TP " +
-        p.tp +
-        ", " +
-        p.lots +
-        " lot; R:R " +
-        (Number.isFinite(rr) ? rr.toFixed(2) : "—") +
-        "."
-      );
-    })
-    .join(" ");
-  if (nb)
-    return (
-      (issues.length
-        ? "Reglene for ordregeometri er ikke oppfylt. "
-        : plans.length
-          ? c.selectedRange
-            ? "Ordregeometrien er støttet; et komplett strategisignal er ikke bekreftet. "
-            : "Uklart om strategien er oppfylt; ordregeometrien er støttet. "
-          : "Uklart om oppsettet oppfyller strategien. ") +
-      (range
-        ? "Du har markert to ferdige " +
-          range.timeframe +
-          "-candles. C1 høy/lav er " +
-          range.c1.high +
-          "/" +
-          range.c1.low +
-          "; C2 slutt er " +
-          range.c2.close +
-          ". " +
-          (range.c2.close > range.c1.high
-            ? "C2 sluttet over C1-toppen. "
-            : range.c2.close < range.c1.low
-              ? "C2 sluttet under C1-bunnen. "
-              : "C2 sluttet innenfor eller på C1-området; et sluttbrudd over er ikke bekreftet. ")
-        : "Jeg har ikke et entydig markert C1/C2-par. Marker C1 med «Marker C1/C2»; appen velger neste ferdige candle som C2. ") +
-      detail +
-      (plans.length && risk !== null
-        ? " Samlet beregnet risiko er " +
-          risk.toFixed(2) +
-          " i kontoens valuta, inkludert oppgitte kostnadsantakelser. "
-        : "") +
-      " Det er bra å planlegge inngang, ugyldiggjøring og mål før utførelse. Et mål inne i C1 er ikke automatisk feil, og 4H-sluttprisen er ikke automatisk SL. " +
-      (issues.length
-        ? "Kontroller at SL ligger på tapssiden og TP på gevinstsiden for hver inngang. "
-        : "Det som mangler, er en dokumentert bekreftelse på inngangstidsrammen for den konkrete strategien. ") +
-      (range
-        ? "Neste steg: kontroller den skrevne inngangsbekreftelsen på lavere tidsramme. "
-        : "Neste steg: marker candleparet og skriv én regel som må være oppfylt før du går inn. ") +
-      "Vurder de to inngangene hver for seg; felles SL gjør dem ikke til én enkelt risiko. Resultatet etterpå avgjør ikke om beslutningen var god."
-    );
-  return (
-    (issues.length
-      ? "Order geometry rules are not met. "
-      : plans.length
-        ? c.selectedRange
-          ? "Order geometry is supported; a complete strategy signal is not confirmed. "
-          : "Strategy compliance is unclear; order geometry is supported. "
-        : "Strategy compliance is unclear. ") +
-    (range
-      ? "The marked " +
-        range.timeframe +
-        " C1 and C2 are completed. C1 high/low: " +
-        range.c1.high +
-        "/" +
-        range.c1.low +
-        "; C2 close: " +
-        range.c2.close +
-        ". " +
-        (range.c2.close > range.c1.high
-          ? "C2 closed above C1. "
-          : range.c2.close < range.c1.low
-            ? "C2 closed below C1. "
-            : "C2 closed within or on the C1 range, so a close above is not confirmed. ")
-      : "No unique C1/C2 pair is marked. Use “Mark C1/C2” and select C1; the next completed candle becomes C2. ") +
-    detail +
-    (plans.length && risk !== null
-      ? " Combined estimated risk is " +
-        risk.toFixed(2) +
-        " in the account currency, including configured costs. "
-      : "") +
-    " Planning entries, invalidation and targets before execution is useful. A target inside C1 is not automatically invalid; the 4H close is not an automatic stop. " +
-    (issues.length
-      ? "Correct SL to the loss side and TP to the profit side for each entry. "
-      : "What is missing is a documented entry confirmation on the lower timeframe for the specific strategy. ") +
-    (range
-      ? "Next: check your written entry confirmation on the lower timeframe. "
-      : "Next: mark the candle pair and state one confirmation you will wait for. ") +
-    "Assess each entry separately; sharing a stop does not make their risks identical. Judge rule compliance, risk and execution separately from the later profit or loss."
-  );
+  return assessmentReply(c, nb);
 }
 
 export function coachEvidenceIssue(
@@ -217,6 +116,55 @@ export function coachEvidenceIssue(
   c: ReturnType<typeof buildContext>,
 ): string | null {
   const clean = text.replace(/\*\*/g, "");
+  if (c.dataQuality?.status === "insufficient")
+    return "Historical evidence is incomplete. Do not assess setup validity as if data were complete.";
+  if (
+    !c.reviewMode &&
+    !c.pending.length &&
+    /(?:you have|your|du har|din).{0,30}(?:pending (?:buy|sell|order)|ventende ordre)|(?:you have|du har).{0,15}(?:a |en )?pending|(?:setup|oppsett).{0,15}(?:is|er) (?:a|en) pending/i.test(
+      clean,
+    )
+  )
+    return "No pending orders exist. Drawing plans and unplaced drafts are not submitted orders.";
+  if (
+    !c.reviewMode &&
+    !c.openPositions.length &&
+    /(?:you (?:have )?(?:bought|entered)|du har (?:kjøpt|gått inn))/i.test(
+      clean,
+    )
+  )
+    return "No position has been filled. Describe the drawing or draft without inventing execution.";
+  if (
+    !c.reviewMode &&
+    c.planFacts.entries.some((p) => p.sl === undefined) &&
+    /(?:risk.{0,35}(?:met|complied|safe)|risiko.{0,35}(?:overholdt|oppfylt)|ufarlig|risk is \d)/i.test(
+      clean,
+    )
+  )
+    return "At least one entry has no SL. Combined risk and risk-budget compliance are unknown, never safe or verified.";
+  if (
+    !c.reviewMode &&
+    (!c.strategy.text.trim() ||
+      (c as any).contextLimits?.strategyTextTruncated) &&
+    clean
+      .split(/[.!?\n]/)
+      .some(
+        (sentence) =>
+          /(?:setup|strategy|oppsett|strategi).{0,35}(?:is valid|is supported|er gyldig|er godkjent)/i.test(
+            sentence,
+          ) &&
+          !/cannot|can't|not (?:verified|valid|supported)|unclear|ikke|uklar/i.test(
+            sentence,
+          ),
+      )
+  )
+    return "There is no complete written entry rule. Distinguish valid geometry from unknown strategy compliance.";
+  if (
+    /execute.{0,35}(?:validate|generate trade history)|utfør.{0,35}(?:validere|godkjenne)/i.test(
+      clean,
+    )
+  )
+    return "Executing an order is not needed to establish decision quality. Ask for rules/evidence, not a trade to validate the idea.";
   if (
     !c.selectedRange &&
     clean
@@ -232,6 +180,22 @@ export function coachEvidenceIssue(
     )
   )
     return "Return only the final explanation to the user, without drafting notes or a discussion of prompts.";
+  if (c.selectedRange) {
+    for (const m of clean.matchAll(
+      /\bC([12])[- ]?(high|low|close|open|høyeste|laveste|topp|bunn|slutt)\s*(?:er|is|var|was|:|=|ved|at)?\s*\(?\s*(\d+(?:[.,]\d+)?)/gi,
+    )) {
+      const candle = m[1] === "1" ? c.selectedRange.c1 : c.selectedRange.c2;
+      const field = /high|høyeste|topp/i.test(m[2])
+        ? "high"
+        : /low|laveste|bunn/i.test(m[2])
+          ? "low"
+          : /close|slutt/i.test(m[2])
+            ? "close"
+            : "open";
+      if (Math.abs(candle[field] - Number(m[3].replace(",", "."))) > 1e-8)
+        return "A named C1/C2 level does not match its exact candle field. Do not substitute close for high/low; use assessment.pair and entry levelReferences.";
+    }
+  }
   const claims = [
     ...clean.matchAll(
       /(?:SL|stop.loss)\s*\(?([\d.]+)\)?.{0,20}(above|below|over|under).{0,25}(?:entry|inngang)[^\d]{0,12}([\d.]+)/gi,
@@ -273,6 +237,24 @@ export function coachEvidenceIssue(
   )
     return "This is explicitly a geometry-only practice rule. Do not add a mandatory breakout, sweep or candle-close entry condition. State that geometry and budget compliance do not predict price.";
   const entries = c.planFacts.entries;
+  if (!c.reviewMode && entries.length === 2) {
+    const mentioned = [
+      ...clean.matchAll(/(?<![\w.,])\d+(?:[.,]\d+)?(?!\w)/g),
+    ].map((m) => Number(m[0].replace(",", ".")));
+    if (
+      entries.some((p) => !mentioned.some((n) => Math.abs(n - p.entry) < 1e-8))
+    )
+      return "Two plans are supplied. Explain each exact entry with its own SL, target and computed cash risk before comparing the aggregate. Do not choose one merely from R:R.";
+  }
+  if (
+    !c.reviewMode &&
+    entries.length &&
+    entries.every((p) => !p.issues.length && p.sl !== undefined) &&
+    /(?:risk (?:is |remains )?(?:unknown|uncertain|undefined)|(?:unknown|uncertain|undefined) (?:cash )?risk|risiko(?:en)? (?:er |forblir )?(?:ukjent|usikker|udefinert))/i.test(
+      clean,
+    )
+  )
+    return "Cash risk is computed for every supplied plan. Distinguish known cash risk from unverified strategy quality.";
   if (
     entries.length &&
     entries.every((p) => !p.issues.length) &&

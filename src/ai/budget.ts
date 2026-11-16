@@ -1,3 +1,4 @@
+import { assessmentFacts } from "./assessment";
 import type { buildContext } from "./context";
 export function fitContext(
   input: ReturnType<typeof buildContext>,
@@ -34,7 +35,10 @@ export function fitContext(
       .slice(0, 12)
       .map((r) => ({ ...r, text: r.text.slice(0, 300) }));
   value.strategy.text = value.strategy.text.slice(0, 2000);
-  while (JSON.stringify(value).length > limit) {
+  while (
+    ((value.assessment = assessmentFacts(value)),
+    JSON.stringify(value).length > limit)
+  ) {
     if (value.conversation.length > 2) value.conversation.shift();
     else if (value.tradeHistory.length > 3) value.tradeHistory.pop();
     else if (value.notes.length) value.notes.shift();
@@ -48,10 +52,18 @@ export function fitContext(
     else if (value.drawings.length > 4) value.drawings.shift();
     else break;
   }
+  value.assessment = assessmentFacts(value);
   return {
     ...value,
     contextLimits: {
       characterBudget: limit,
+      strategyTextTruncated: value.strategy.text !== input.strategy.text,
+      characterBudgetExceeded: JSON.stringify(value).length > limit,
+      originalDecisionRulesTruncated:
+        value.reviewAtDecision?.strategy?.text !==
+        input.reviewAtDecision?.strategy?.text,
+      evidenceWasReduced:
+        JSON.stringify(value).length !== JSON.stringify(input).length,
       visibleCandlesIncluded: value.candles.length,
       secondCandlesIncluded: value.secondCandles.length,
       totalDrawings: input.drawings.length,
