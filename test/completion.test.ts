@@ -337,3 +337,20 @@ test("public IPC exposes the completed instrument and challenge actions", () => 
   ])
     assert.ok(allowed.includes(JSON.stringify(command)), command);
 });
+
+test("single HTF candle uses only the current UTC bucket and never substitutes a closed bar across gaps", () => {
+  const bars = [
+    bar(base - 14400000, 2000, 2010, 1990, 2005),
+    bar(base, 2005, 2015, 2001, 2012),
+    bar(base + 14400000, 2012, 9999, 1, 9999),
+  ];
+  const view = htfCandles(bars, base + 265000, "4H", 1);
+  assert.equal(view.length, 1);
+  assert.equal(view[0].time, base / 1000);
+  assert.equal(view[0].closed, false);
+  assert.equal(view[0].remaining, 14135);
+  assert.equal(view[0].high, 2015);
+  assert.deepEqual(htfCandles(bars.slice(0, 2), base + 14400000, "4H", 1), []);
+  assert.deepEqual(htfCandles(bars.slice(0, 1), base + 265000, "4H", 1), []);
+  assert.equal(htfCandles(bars, base + 265000, "4H", 3).length, 2);
+});
