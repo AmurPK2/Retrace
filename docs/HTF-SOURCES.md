@@ -1,6 +1,6 @@
 # Higher-timeframe display and the source example
 
-The original RETRACE side-candle renderer uses replay-bounded bid OHLC. No TradingView indicator source was copied. Change timeframe, size, spacing, count, colours and level lines from the HTF panel. A forming candle is rebuilt only through the latest replay tick. Countdown is replay time, not wall-clock time. Incomplete history is not labelled a complete candle.
+The original RETRACE side-candle renderer uses replay-bounded bid OHLC. From 0.3.1 the default is one large developing 4H candle (56 px wide, a 200 px price plot), rather than two closed candles beside it. The count setting still permits optional previous candles. Single-candle mode shows a waiting state when the current UTC bucket has no verified prices; it never presents an old closed candle as the current one. No TradingView indicator source was copied. Change timeframe, size, spacing, count, colours and level lines from the HTF panel. A forming candle is rebuilt only through the latest replay tick. Countdown is replay time, not wall-clock time. Incomplete history is not labelled a complete candle.
 
 4H buckets start at 00:00, 04:00, 08:00, 12:00, 16:00 and 20:00 UTC. Display timezone/DST changes labels only. Market calendars and genuine data gaps remain separate from bucket boundaries. This differs from broker charts aligned to another server timezone; a named 4H candle may therefore differ from a screenshot on another platform.
 
