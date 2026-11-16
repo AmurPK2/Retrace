@@ -706,3 +706,66 @@
   line-height: 1.6;
   color: var(--text);
 }
+
+/* Shared RETRACE readability contract; no learning state or logic changes. */
+.themed .rr-study-panel {
+  font-size: 12px;
+}
+.themed .rr-study-panel p {
+  font-size: 12px;
+  line-height: 1.7;
+}
+.themed .rr-study-panel small,
+.themed .rr-study-panel label > span,
+.themed .rr-study-header small,
+.themed .rr-context-controls > span {
+  font-size: 11px;
+  color: var(--ui-muted);
+}
+.themed .rr-study-header b {
+  font-size: 14px;
+  font-weight: 600;
+}
+.themed .rr-study-tabs {
+  gap: 14px;
+}
+.themed .rr-study-tabs button {
+  font-size: 12px;
+  min-height: 36px;
+}
+.themed .rr-study-tabs .selected {
+  border-radius: 0;
+}
+.themed .rr-study-panel h3 {
+  font-size: 15px;
+  font-weight: 600;
+}
+.themed .rr-study-panel input,
+.themed .rr-study-panel select,
+.themed .rr-study-panel textarea {
+  border-color: var(--ui-border);
+  border-radius: 6px;
+}
+.themed .rr-study-panel > footer {
+  font-size: 10px;
+  color: var(--ui-muted);
+}
+.themed .rr-study-content {
+  padding: 16px;
+}
+.themed .rr-study-content button {
+  min-height: 30px;
+  font-size: 12px;
+}
+.themed .rr-beginner-guide,
+.themed .rr-glossary {
+  border-color: var(--ui-border);
+  background: var(--ui-raised);
+}
+.themed .rr-guide-dialog {
+  border-color: var(--ui-border);
+  border-radius: 12px;
+}
+.themed .rr-guide-dialog nav .selected {
+  background: color-mix(in srgb, var(--accent) 12%, var(--panel-solid));
+}
