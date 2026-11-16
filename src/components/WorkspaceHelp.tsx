@@ -1,61 +1,118 @@
 import { ToolIcon } from "./ToolIcon";
-
 const tools = [
   [
     "select",
-    "Select & move",
-    "Click inside a shape to select it. Drag its body to move; drag a handle to resize. Click empty space to deselect.",
+    "Velg og flytt",
+    "Klikk inni en tegning for å velge. Dra kroppen for å flytte, eller et håndtak for å endre formen. Klikk tom plass eller trykk Esc for å fjerne valget.",
   ],
   [
     "horizontal",
-    "Horizontal line",
-    "Click once at a price. Drag the line or its handle to adjust.",
+    "Vannrett nivå",
+    "Klikk én gang på ønsket pris. Dra linjen for å flytte nivået.",
   ],
   [
     "ray",
-    "Ray",
-    "Choose two points, or hold and drag. The ray continues through the second point. Hold Shift to lock horizontally or vertically.",
+    "Stråle",
+    "Velg to punkter. Linjen fortsetter forbi det andre punktet. Shift låser vannrett eller loddrett.",
   ],
   [
     "trend",
-    "Trend line",
-    "Choose two endpoints, or hold and drag. Hold Shift to lock to the nearest horizontal or vertical axis; release Shift to draw freely. Both ends remain editable. Enter can finish a two-point line.",
+    "Trendlinje",
+    "Velg to endepunkter, eller hold og dra. Endre endepunktene med håndtakene. Shift låser retningen.",
   ],
   [
     "zone",
-    "Rectangle",
-    "Hold and drag across a price area. Select its body; resize from an edge or corner.",
+    "Rektangel",
+    "Hold og dra over et prisområde. Dra en kant eller et hjørne for å endre størrelsen.",
   ],
   [
     "fib",
     "Fibonacci",
-    "Drag between two anchors. Select it, then edit its levels in the object toolbar.",
+    "Dra mellom to ankerpunkter. Velg tegningen for å endre nivåer, etiketter og farger. Lagre oppsettet som din standard.",
   ],
   [
     "long",
-    "Long position",
-    "A buy planning box. Entry, SL, TP and width move independently. This drawing does not place an order.",
+    "Kjøpsplan",
+    "Tegn en plan med inngang, stop loss og mål. Dra nivåene hver for seg. Tegningen sender ingen ordre.",
   ],
   [
     "short",
-    "Short position",
-    "A sell planning box. Edit SL or target directly; use the R:R field to set a target from the stop distance.",
+    "Salgsplan",
+    "Samme planverktøy for salg. Endre mål direkte eller gjennom R:R. Kontroller nivåene før du oppretter en separat ordre.",
   ],
   [
     "magnet",
     "Magnet",
-    "Click to cycle Off → Weak → Strong. Hold Ctrl while drawing to temporarily toggle snapping. Order levels remain freely draggable.",
+    "Veksler mellom av, svak og sterk låsing til candle-priser. Ctrl bytter midlertidig mens du tegner. Ordrenivåer kan fortsatt dras fritt.",
   ],
 ] as const;
-
 export function WorkspaceHelp() {
   return (
     <div className="workspace-help">
       <section>
-        <h3>Draw on the chart</h3>
+        <h3>De seks knappene over charten</h3>
+        <dl className="shortcut-guide">
+          <dt>Ny ordre</dt>
+          <dd>
+            Vis et ordreutkast på charten. Høyreklikk ved en pris for å starte
+            der.
+          </dd>
+          <dt>4H-candle</dt>
+          <dd>
+            Vis eller skjul én stor pågående candle. Den deler prisskala med
+            charten. Klikk overskriften på indikatoren for bredde, farger og
+            tidsramme.
+          </dd>
+          <dt>Lær 4H</dt>
+          <dd>
+            Åpne trinnvis forklaring og video. Start her hvis candle-begrepene
+            er nye.
+          </dd>
+          <dt>Utfordringer</dt>
+          <dd>
+            Svar på oppgaver i din nåværende økt. Lås svaret, få tilbakemelding,
+            og avslør deretter neste candle.
+          </dd>
+          <dt>Tegninger</dt>
+          <dd>
+            Finn, velg, skjul eller lås objektene du har tegnet. De bevares når
+            du bytter tidsramme.
+          </dd>
+          <dt>Mer</dt>
+          <dd>
+            Ekstra verktøy med forklaring: C1/C2, indikatorer, to charts,
+            chart-tilpasning, leksjoner og ordredetaljer.
+          </dd>
+        </dl>
+      </section>
+      <section>
+        <h3>Lag og juster en ordre</h3>
         <p>
-          Hover over any toolbar icon to see its name. Drawings stay anchored to
-          time and price while you pan or zoom.
+          Høyreklikk ved ønsket pris og velg en ordre. Dra inngang, SL og TP
+          hver for seg. Størrelsen i lots står rett ved inngangsnivået.
+          Kontroller kontant risiko og trykk <b>Place order</b> for å legge
+          ordren inn i replayen.
+        </p>
+        <p>
+          En ventende ordre kan få ny størrelse før den fylles. En fylt posisjon
+          beholder den faktiske størrelsen. Rødt markerer stop loss, grønt
+          markerer take profit, og inngangen merkes med kjøp eller salg.
+        </p>
+      </section>
+      <section>
+        <h3>La coachen vurdere oppsettet</h3>
+        <p>
+          Åpne Assistant og trykk <b>Vurder oppsettet</b>. Coachen leser synlige
+          candles, tegninger, ordre og lagrede regler ved replay-tiden. Du kan
+          også stille et vanlig spørsmål. Skjermbilde brukes som støtte, mens
+          beregnede priser og risiko kommer fra appens data.
+        </p>
+      </section>
+      <section>
+        <h3>Tegneverktøyene på venstre side</h3>
+        <p>
+          Hold pekeren over et ikon for navnet. Når du velger et verktøy, får du
+          en kort bruksforklaring over charten.
         </p>
         <div className="tool-guide">
           {tools.map(([kind, title, text]) => (
@@ -70,65 +127,24 @@ export function WorkspaceHelp() {
         </div>
       </section>
       <section>
-        <h3>Make an order</h3>
-        <p>
-          Click <b>Make order</b>, then drag the entry line. Above the current
-          bid it becomes <b>Sell level</b>; below it becomes <b>Buy level</b>.
-          Add SL or TP and drag them into place. Review size and cash risk, then
-          click <b>Place order</b>.
-        </p>
-        <p>
-          <b>Cancel draft</b> discards the preview. For a placed pending order,
-          use its chart × or Cancel in Orders. Positions are managed separately
-          in Positions.
-        </p>
-      </section>
-      <section>
-        <h3>Shortcuts</h3>
+        <h3>Snarveier</h3>
         <dl className="shortcut-guide">
-          <dt>
-            <kbd>Space</kbd>
-          </dt>
-          <dd>Advance one candle (hold does not repeat)</dd>
-          <dt>
-            <kbd>P</kbd>
-          </dt>
-          <dd>Play / pause replay</dd>
-          <dt>
-            <kbd>→</kbd>
-          </dt>
-          <dd>Advance one candle</dd>
-          <dt>
-            <kbd>Esc</kbd>
-          </dt>
-          <dd>Close a dialog; otherwise close the menu and deselect</dd>
-          <dt>
-            <kbd>Ctrl Z</kbd>
-          </dt>
-          <dd>Undo drawing change</dd>
-          <dt>
-            <kbd>Ctrl Y</kbd> / <kbd>Ctrl Shift Z</kbd>
-          </dt>
-          <dd>Redo drawing change</dd>
-          <dt>
-            <kbd>Shift</kbd>
-          </dt>
-          <dd>
-            Lock a trend line or ray to the nearest horizontal or vertical axis
-            while drawing or moving an endpoint
-          </dd>
-          <dt>
-            <kbd>Delete</kbd>
-          </dt>
-          <dd>Delete the selected drawing</dd>
-          <dt>
-            <kbd>?</kbd>
-          </dt>
-          <dd>Open this guide and pause replay</dd>
+          <dt>Space / →</dt>
+          <dd>Gå én candle frem. Å holde tasten inne gjentar ikke steget.</dd>
+          <dt>P</dt>
+          <dd>Spill av eller pause replay.</dd>
+          <dt>Esc</dt>
+          <dd>Lukk dialogen, menyen eller valget.</dd>
+          <dt>Ctrl Z / Ctrl Y</dt>
+          <dd>Angre eller gjenta en tegningsendring.</dd>
+          <dt>Delete</dt>
+          <dd>Slett den valgte tegningen.</dd>
+          <dt>?</dt>
+          <dd>Åpne denne hjelpen og pause replay.</dd>
         </dl>
-        <p className="help-note">
-          Typing fields keep their normal editing shortcuts. Replay shortcuts
-          are inactive while a dialog is open.
+        <p>
+          Snarveier for replay er inaktive mens du skriver eller har en dialog
+          åpen.
         </p>
       </section>
     </div>

@@ -7,9 +7,11 @@ import {
 export function ChallengePanel({
   learning,
   call,
+  aiEnabled,
 }: {
   learning: Learning;
   call: (c: any) => Promise<any>;
+  aiEnabled: boolean;
 }) {
   const c = learning.active,
     nb = learning.language === "nb",
@@ -23,6 +25,8 @@ export function ChallengePanel({
     setBusy(true);
     try {
       await call(command);
+      if (command.type === "challenge.commit" && aiEnabled)
+        await call({ type: "challenge.feedback", id: c.id });
       setIssue("");
     } catch (e) {
       setIssue(String(e));
@@ -69,6 +73,12 @@ export function ChallengePanel({
         </select>
       </div>
       <p>{def[nb ? 3 : 4]}</p>
+      <button onClick={() => void run({ type: "challenge.end" })}>
+        {text(
+          "Tilbake til fri øving · behold forsøket",
+          "Return to free practice · keep attempt",
+        )}
+      </button>
       <p className="micro">
         {text("Låst start: ", "Locked start: ")}
         {new Date(c.cutoff).toISOString()} · {c.dataset} · {c.version}
@@ -225,6 +235,79 @@ export function ChallengePanel({
               <p>{check.detail}</p>
             </div>
           ))}
+          <section
+            className="challenge-feedback"
+            aria-label="Veiledning på svaret"
+          >
+            <h4>
+              {c.feedback?.source === "model"
+                ? text(
+                    "AI-veiledning på svaret ditt",
+                    "AI feedback on your answer",
+                  )
+                : text("Tilbakemelding på svaret", "Feedback on your answer")}
+            </h4>
+            {c.feedback?.status === "generating" ? (
+              <p role="status">
+                {text(
+                  "Coachen leser det låste svaret og candledataene…",
+                  "The coach is reading the locked answer and candle evidence…",
+                )}{" "}
+                <button onClick={() => void run({ type: "ai.cancel" })}>
+                  {text("Stopp AI-vurdering", "Stop AI review")}
+                </button>
+              </p>
+            ) : (
+              c.feedback && (
+                <>
+                  <small>
+                    {c.feedback.source === "model"
+                      ? text(
+                          "Lokal AI · samme informasjon som ved svaret",
+                          "Local AI · only evidence available at the answer",
+                        )
+                      : text(
+                          "Beregnet faktasjekk · AI-vurdering er separat",
+                          "Computed checks · AI assessment is separate",
+                        )}
+                  </small>
+                  <h5>{text("Dette var bra", "What went well")}</h5>
+                  <p>{c.feedback.good}</p>
+                  <h5>{text("Dette kan forbedres", "What to improve")}</h5>
+                  <p>{c.feedback.improve}</p>
+                  <h5>{text("Neste steg", "Next step")}</h5>
+                  <p>{c.feedback.next}</p>
+                  {c.feedback.note && <small>{c.feedback.note}</small>}
+                </>
+              )
+            )}
+            {c.feedback?.status !== "generating" && (
+              <button
+                disabled={busy}
+                onClick={() =>
+                  void (async () => {
+                    try {
+                      if (!aiEnabled)
+                        await call({ type: "ai.toggle", value: true });
+                      await run({ type: "challenge.feedback", id: c.id });
+                    } catch (e) {
+                      setIssue(String(e));
+                    }
+                  })()
+                }
+              >
+                {aiEnabled
+                  ? text(
+                      "Vurder begrunnelsen med AI",
+                      "Review reasoning with AI",
+                    )
+                  : text(
+                      "Slå på AI og vurder begrunnelsen",
+                      "Enable AI and review reasoning",
+                    )}
+              </button>
+            )}
+          </section>
           <p>
             {text(
               "Beslutningen vurderes fra det du visste da. Neste candle endrer ikke denne vurderingen.",

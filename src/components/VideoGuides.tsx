@@ -88,9 +88,17 @@ const guides = [
   },
 ];
 
-export function VideoGuides({ norwegian }: { norwegian: boolean }) {
+export function VideoGuides({
+  norwegian,
+  initial = 0,
+  label,
+}: {
+  norwegian: boolean;
+  initial?: number;
+  label?: string;
+}) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState(0);
+  const [selected, setSelected] = useState(initial);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -102,7 +110,7 @@ export function VideoGuides({ norwegian }: { norwegian: boolean }) {
     <>
       <button className="rr-open-guides" onClick={() => setOpen(true)}>
         <Play size={15} />
-        {norwegian ? "Se videoguidene" : "Video guides · Norwegian"}
+        {label ?? (norwegian ? "Se videoguidene" : "Video guides · Norwegian")}
       </button>
       {open && (
         <dialog

@@ -1,3 +1,5 @@
+import { HTFCandles } from "./HTFCandles";
+import { htfCandles, DEFAULT_HTF, type HTFSettings } from "../core/htf";
 import { INSTRUMENTS, instrumentForDataset } from "../core/instruments";
 import {
   useEffect,
@@ -93,6 +95,9 @@ export const Chart = forwardRef<
   ChartHandle,
   {
     bars: Bar[];
+    htfBars?: Bar[];
+    onHTFChange?: (value: HTFSettings) => void;
+    onLearnHTF?: () => void;
     levels: import("../core/levels").Level[];
     session: Session;
     timeframe: TF;
@@ -131,6 +136,9 @@ export const Chart = forwardRef<
 >(function Chart(
   {
     bars,
+    htfBars = [],
+    onHTFChange,
+    onLearnHTF,
     levels: appLevels,
     session: s,
     timeframe,
@@ -156,6 +164,33 @@ export const Chart = forwardRef<
   },
   ref,
 ) {
+  const sideConfig = { ...DEFAULT_HTF, ...s.layout.htf };
+  const sideSpace =
+    !secondary && sideConfig.enabled
+      ? Math.max(
+          178,
+          (sideConfig.width + sideConfig.gap) * sideConfig.count + 100,
+        ) + 24
+      : 0;
+  function reserveSideSpace(pixels = sideSpace) {
+    const target = chart.current;
+    // Lightweight Charts applies a new logical range on its next render frame.
+    // Reserve space only after that range settles, not against the previous view.
+    requestAnimationFrame(() => {
+      const c = chart.current,
+        range = c?.timeScale().getVisibleLogicalRange();
+      if (!c || c !== target || !range || !pixels) return;
+      const last = timesRef.current.length - 1,
+        spacing =
+          c.timeScale().width() / (Number(range.to) - Number(range.from));
+      const missing = pixels - (Number(range.to) - last) * spacing;
+      if (missing > 1)
+        c.timeScale().setVisibleLogicalRange({
+          from: Number(range.from) + missing / spacing,
+          to: Number(range.to) + missing / spacing,
+        });
+    });
+  }
   const rangeCallback = useRef(onRange);
   rangeCallback.current = onRange;
   const host = useRef<HTMLDivElement>(null),
@@ -413,6 +448,13 @@ export const Chart = forwardRef<
             ),
           }
         : null;
+    const followReplay = !!(
+      range &&
+      previous &&
+      previous.cutoff !== s.tick.t &&
+      Number(range.from) <= previous.times.length - 1 &&
+      Number(range.to) >= previous.times.length - 1
+    );
     const priceRange =
       preserve && previous?.cutoff === s.tick.t
         ? c.priceScale("right").getVisibleRange()
@@ -427,7 +469,14 @@ export const Chart = forwardRef<
     series.current.setData(
       timeline.map((b) => ({ ...b, time: b.time as UTCTimestamp })),
     );
-    if (view)
+    if (followReplay && range && previous) {
+      const right =
+        times.length - 1 + (Number(range.to) - (previous.times.length - 1));
+      c.timeScale().setVisibleLogicalRange({
+        from: right - (Number(range.to) - Number(range.from)),
+        to: right,
+      });
+    } else if (view)
       c.timeScale().setVisibleLogicalRange({
         from: logicalAtTime(times, view.from, FRAMES[timeframe]),
         to: logicalAtTime(times, view.to, FRAMES[timeframe]),
@@ -559,6 +608,7 @@ export const Chart = forwardRef<
     c.timeScale().setVisibleLogicalRange(
       initialChartRange(timesRef.current, FRAMES[timeframe], saved) as any,
     );
+    if (!saved) reserveSideSpace();
     let timer: ReturnType<typeof setTimeout>;
     const changed = (range: any) => {
       if (!range) return;
@@ -590,6 +640,11 @@ export const Chart = forwardRef<
       c.timeScale().unsubscribeVisibleLogicalRangeChange(changed);
     };
   }, [timeframe, s.id]);
+  const previousSideSpace = useRef(sideSpace);
+  useEffect(() => {
+    if (sideSpace > previousSideSpace.current) reserveSideSpace();
+    previousSideSpace.current = sideSpace;
+  }, [sideSpace]);
   useImperativeHandle(ref, () => ({
     focusTrade: (id) => {
       const events = tradeMarkers(s).arrows.filter((m) => m.tradeId === id);
@@ -657,6 +712,7 @@ export const Chart = forwardRef<
     current: () => {
       chart.current?.priceScale("right").applyOptions({ autoScale: true });
       chart.current?.timeScale().scrollToRealTime();
+      reserveSideSpace();
     },
     fit: () => {
       chart.current?.priceScale("right").applyOptions({ autoScale: true });
@@ -665,6 +721,7 @@ export const Chart = forwardRef<
         .setVisibleLogicalRange(
           initialChartRange(timesRef.current, FRAMES[timeframe]) as any,
         );
+      reserveSideSpace();
     },
     overview: () => {
       chart.current?.priceScale("right").applyOptions({ autoScale: true });
@@ -1135,6 +1192,17 @@ export const Chart = forwardRef<
   return (
     <div
       className={"chart " + (secondary ? "secondary" : "")}
+      data-last-candle-x={times.length ? x(times.at(-1)!) : undefined}
+      tabIndex={-1}
+      onPointerDownCapture={(e) => {
+        if (
+          !(e.target as Element).closest(
+            'input,textarea,select,button,a,summary,video,[contenteditable="true"],[role="button"]',
+          )
+        ) {
+          e.currentTarget.focus({ preventScroll: true });
+        }
+      }}
       onContextMenu={(e) => {
         if (
           secondary ||
@@ -1166,14 +1234,55 @@ export const Chart = forwardRef<
       }}
     >
       <div ref={host} className="chart-canvas" />
+      {!secondary && onHTFChange && onLearnHTF && (
+        <HTFCandles
+          bars={htfBars}
+          cutoff={s.tick.t}
+          value={s.layout.htf}
+          save={(value) => {
+            onHTFChange(value);
+            if (value.enabled)
+              reserveSideSpace(
+                Math.max(178, (value.width + value.gap) * value.count + 100) +
+                  24,
+              );
+          }}
+          precision={s.broker.specs.precision}
+          height={paneHeight}
+          priceY={y}
+          onLearn={onLearnHTF}
+          onFit={() => {
+            const c = { ...DEFAULT_HTF, ...s.layout.htf };
+            const shown = htfCandles(htfBars, s.tick.t, c.timeframe, c.count);
+            if (!shown.length) return;
+            const low = Math.min(...shown.map((b) => b.low)),
+              high = Math.max(...shown.map((b) => b.high)),
+              pad =
+                Math.max(high - low, s.broker.specs.tickSize ?? 0.001) * 0.25;
+            chart.current
+              ?.priceScale("right")
+              .setVisibleRange({ from: low - pad, to: high + pad });
+            reserveSideSpace();
+            repaint((v) => v + 1);
+          }}
+        />
+      )}
       {!secondary && (
         <div
           className="chart-order-sizes"
           onPointerDown={(e) => e.stopPropagation()}
         >
           {visibleDraft && (
-            <label>
-              Draft size{" "}
+            <label
+              className="order-inline-size"
+              style={{
+                top: Math.max(
+                  34,
+                  Math.min(paneHeight - 42, y(visibleDraft.entry) - 14),
+                ),
+              }}
+            >
+              Størrelse{" "}
               <input
                 aria-label="Draft size"
                 type="number"
@@ -1185,7 +1294,16 @@ export const Chart = forwardRef<
             </label>
           )}
           {s.broker.pending.map((p) => (
-            <label key={p.id}>
+            <label
+              className="order-inline-size"
+              key={p.id}
+              style={{
+                top: Math.max(
+                  34,
+                  Math.min(paneHeight - 42, y(p.price ?? s.tick.bid) - 14),
+                ),
+              }}
+            >
               {p.side.toUpperCase()} @{" "}
               {p.price?.toFixed(s.broker.specs.precision)}{" "}
               <input

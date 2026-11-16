@@ -61,6 +61,7 @@ export function AssistantPanel({
   mode,
   setMode,
   send,
+  assess,
   sending,
   act,
   openSettings,
@@ -73,6 +74,7 @@ export function AssistantPanel({
   mode: string;
   setMode: (v: string) => void;
   send: () => Promise<void>;
+  assess: () => Promise<void>;
   sending: boolean;
   act: (command: any) => void;
   openSettings: () => void;
@@ -127,8 +129,8 @@ export function AssistantPanel({
     <section className="assistant-panel">
       <header className="assistant-header">
         <div>
-          <b>Chart Assistant</b>
-          <span>Local · private</span>
+          <b>Chart-coach</b>
+          <span>Leser chart, tegninger og tidsrammer</span>
         </div>
         <button
           className={`assistant-power ${enabled ? "on" : ""}`}
@@ -251,17 +253,14 @@ export function AssistantPanel({
       <div className="assistant-compose">
         <button
           className="coach-assess"
-          onClick={() => {
-            setMode("Check setup");
-            setDraft(
-              "Vurder oppsettet mitt. Forklar candlegrunnlaget, begge innganger hvis relevant, risiko og neste læringspunkt.",
-            );
-          }}
+          disabled={!enabled || busy || !state.session}
+          title="Scanner chart, tegninger og tidsrammer og svarer direkte"
+          onClick={() => void assess()}
         >
           Vurder oppsettet
         </button>
         <details>
-          <summary>Earlier trade / advanced context</summary>
+          <summary>Tidligere trade eller avansert</summary>
           <label className="assistant-trade-target">
             <span>Question refers to</span>
             <select
@@ -323,7 +322,9 @@ export function AssistantPanel({
         <textarea
           aria-label="Message Chart Assistant"
           placeholder={
-            enabled ? "Ask about the chart…" : "Turn on the assistant to ask…"
+            enabled
+              ? "Spør om charten eller oppsettet ditt…"
+              : "Slå på coachen for å spørre…"
           }
           value={draft}
           rows={3}
