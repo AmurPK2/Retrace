@@ -5,7 +5,7 @@ RETRACE downloads historical bid/ask ticks from [Dukascopy's public historical f
 - XAUUSD maps to XAUUSD (price divisor 1,000), USD account, 100 oz per lot, minimum/step 0.01 lot, quote increment 0.001, simulated leverage 1:500.
 - EURAUD maps to EURAUD (divisor 100,000), AUD account, 100,000 EUR per lot, minimum/step 0.01 lot, quote increment 0.00001, simulated leverage 1:30. P&L is directly in AUD; the app does not silently call it USD or invent an AUD/USD conversion.
 - NAS100 maps to Dukascopy USATECHIDXUSD (divisor 1,000). It is a US technology index CFD feed, with one CFD unit worth USD 1 per index point; minimum/step one unit, stored quote increment 0.001, simulated leverage 1:20. Its new practice account starts at USD 10,000 to cover meaningful index-unit margin. This is a simulator assumption, not a quoted broker offer.
-- NQ is visibly unavailable. An NQ futures contract is USD 20 per index point with 0.25-point / USD 5 ticks. No licensed historical contract tick feed, contract expiry selection, rollover or back-adjustment policy is installed. Neither a continuous chart nor a CFD is passed off as a tradable futures contract. A future implementation needs explicit contracts and a documented rollover/execution policy before admission.
+- NQ futures are outside this release and have been removed from instrument choices. NAS100 is explicitly a CFD feed.
 
 Contract and symbol references: [Dukascopy instruments](https://www.dukascopy.com/client/javadoc3/com/dukascopy/api/Instrument.html), [Dukascopy CFD market specifications](https://www.dukascopy.com/swiss/english/cfd/range-of-markets/?lang=en), [CME E-mini Nasdaq-100 contract specifications](https://www.cmegroup.com/markets/equities/nasdaq/e-mini-nasdaq-100.contractSpecs.html).
 
