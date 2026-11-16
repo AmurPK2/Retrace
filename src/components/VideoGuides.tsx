@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Play, X } from "lucide-react";
 
-const guides = [
+export const guides = [
   {
     title: "Kom i gang med den nye arbeidsflyten",
     src: new URL(
@@ -99,6 +99,7 @@ export function VideoGuides({
 }) {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState(initial);
+  useEffect(() => setSelected(initial), [initial]);
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
     if (!open) return;
@@ -154,7 +155,16 @@ export function VideoGuides({
                 onClick={() => setSelected(index)}
               >
                 <span>{index + 1}</span>
-                {guide.title}
+                {norwegian
+                  ? guide.title
+                  : [
+                      "Workflow",
+                      "C1/C2/C3 and timeframes",
+                      "4H and PO3 example",
+                      "SL/TP, size and two entries",
+                      "Custom Fibonacci",
+                      "Understand coach feedback",
+                    ][index]}
               </button>
             ))}
           </nav>
@@ -174,17 +184,21 @@ export function VideoGuides({
               label="Norsk"
             />
           </video>
-          <button
-            onClick={() =>
-              window.replay.call({
-                type: "study.source",
-                lesson: "po3",
-                index: 0,
-              })
-            }
-          >
-            Kilde: JackTrades · HTF / PO3 · 4:11–5:21
-          </button>
+          {selected === 2 && (
+            <button
+              onClick={() =>
+                window.replay.call({
+                  type: "study.source",
+                  lesson: "po3",
+                  index: 0,
+                })
+              }
+            >
+              {norwegian
+                ? "Kilde: JackTrades · HTF / PO3 · 4:11–5:21"
+                : "Source: JackTrades · HTF / PO3 · 4:11–5:21"}
+            </button>
+          )}
           <p>
             {norwegian
               ? "Ekte skjermbilder og replay fra RETRACE, med norsk tale og stor tekst. Bruk fullskjermknappen for et større bilde. Videoene følger med appen og virker uten nett."

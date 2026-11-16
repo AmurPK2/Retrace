@@ -157,36 +157,39 @@ export function AssistantPanel({
               : ""}
         </span>
         <button
-          title="Assistant settings"
-          aria-label="Assistant settings"
+          title="Coach-innstillinger"
+          aria-label="Coach-innstillinger"
           onClick={openSettings}
         >
           <Settings2 size={13} />
         </button>
       </div>
+      <p className="assistant-note coach-limitation">
+        Coachen kan misforstå frie strategiregler. Kontroller begrunnelsen mot
+        candlene og nivåene; et svar er ingen bekreftelse på at en handel er
+        god.
+      </p>
       <div className="assistant-conversation" ref={conversation}>
         {!state.session?.chat.length && (
           <div className="assistant-empty">
             <MessageSquare size={22} />
-            <h3>A second look at your chart.</h3>
-            <p>Ask about structure, risk or your trade plan.</p>
+            <h3>Et nytt blikk på charten.</h3>
+            <p>Spør om candles, risiko eller planen din.</p>
             <button
               onClick={() => {
                 setMode("Check setup");
-                setDraft("What is missing from my trade plan?");
+                setDraft("Hva mangler i handelsplanen min?");
               }}
             >
-              What am I missing?
+              Hva mangler?
             </button>
             <button
               onClick={() => {
                 setMode("Give a hint");
-                setDraft(
-                  "Give one qualitative observation about the current structure.",
-                );
+                setDraft("Gi én konkret observasjon om strukturen på charten.");
               }}
             >
-              Review structure
+              Se på strukturen
             </button>
           </div>
         )}
@@ -205,7 +208,7 @@ export function AssistantPanel({
             </header>
             {m.status === "generating" ? (
               <p className="assistant-typing">
-                Checking the replay snapshot<span>…</span>
+                Kontrollerer replay-data<span>…</span>
               </p>
             ) : (
               <Answer text={messageBody(m)} />
@@ -221,19 +224,31 @@ export function AssistantPanel({
                   : ""}
               </p>
             )}
+            {m.role === "assistant" &&
+              m.status === "complete" &&
+              !m.savedFacts &&
+              !m.evidenceFallback &&
+              !m.historyAnswer && (
+                <p className="assistant-note">
+                  Eksperimentell lokal modellvurdering · kan inneholde feil selv
+                  etter kontroll.
+                </p>
+              )}
             {m.savedFacts && (
               <p className="assistant-note">
-                From the current replay references and learning guide.
+                Beregnet forklaring fra lagrede data og veiledning · ingen
+                modellgenerering.
               </p>
             )}
             {m.historyAnswer && (
               <p className="assistant-note">
-                From this session’s saved trade history.
+                Fra øktens lagrede handelshistorikk.
               </p>
             )}
             {m.evidenceFallback && (
               <p className="assistant-note">
-                Saved-data reply · an AI draft could not be verified.
+                Reserveforklaring fra lagrede data · modellsvaret kunne ikke
+                verifiseres.
               </p>
             )}
             {false && m.groundingFiltered && (
@@ -262,14 +277,14 @@ export function AssistantPanel({
         <details>
           <summary>Tidligere trade eller avansert</summary>
           <label className="assistant-trade-target">
-            <span>Question refers to</span>
+            <span>Spørsmålet gjelder</span>
             <select
               aria-label="Trade to review"
               value={tradeId}
               onChange={(e) => setTradeId(e.target.value)}
             >
-              <option value="auto">Auto · latest trade for reviews</option>
-              <option value="chart">Current chart / draft</option>
+              <option value="auto">Auto · siste handel ved gjennomgang</option>
+              <option value="chart">Synlig chart / utkast</option>
               {state.session &&
                 sessionTrades(state.session)
                   .slice(0, 30)

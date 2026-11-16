@@ -24,7 +24,7 @@ export function FibEditor({
     setDrawing(next);
     persist(next);
   };
-  const [name, setName] = useState("My retracement"),
+  const [name, setName] = useState("Mitt retracement"),
     [presets, setPresets] = useState<Record<string, Partial<Drawing>>>(() => {
       try {
         return JSON.parse(
@@ -45,8 +45,8 @@ export function FibEditor({
   return (
     <div className="fib-editor">
       <p>
-        0 = first anchor; 1 = second. These levels are drawing aids, not
-        verified strategy or profitability rules.
+        0 er første anker, 1 er andre. Nivåene er tegnehjelp, ikke verifiserte
+        strategiregler.
       </p>
       <label>
         <input
@@ -54,8 +54,15 @@ export function FibEditor({
           checked={drawing.fibFill ?? true}
           onChange={(e) => change({ fibFill: e.target.checked })}
         />
-        Fill between visible levels
+        Fyll sonene mellom synlige nivåer
       </label>
+      <div className="fib-column-labels" aria-hidden="true">
+        <span>Nivå</span>
+        <span>Etikett</span>
+        <span>Farge</span>
+        <span>Linje</span>
+        <span>Vis</span>
+      </div>
       {drawing.levels.map((level, i) => {
         const v = style(level, i);
         return (
@@ -118,9 +125,9 @@ export function FibEditor({
                 })
               }
             >
-              <option>solid</option>
-              <option>dashed</option>
-              <option>dotted</option>
+              <option value="solid">Heltrukket</option>
+              <option value="dashed">Stiplet</option>
+              <option value="dotted">Prikket</option>
             </select>
             <input
               aria-label={"Level visible " + i}
@@ -139,9 +146,9 @@ export function FibEditor({
         );
       })}
       <label>
-        All level values
+        Alle nivåverdier (kommaseparert)
         <input
-          aria-label="All Fibonacci levels"
+          aria-label="Alle Fibonacci-nivåer"
           key={drawing.levels.join(",")}
           defaultValue={drawing.levels.join(", ")}
           onBlur={(e) => {
@@ -158,15 +165,15 @@ export function FibEditor({
         />
       </label>
       <button onClick={() => change({ a: drawing.b, b: drawing.a })}>
-        Reverse anchors
+        Bytt ankerretning
       </button>
       <button
         onClick={() => change({ levels: [0, 0.5, 0.618, 1], fibStyles: {} })}
       >
-        Simple preset (suggestion)
+        Enkel standard · forslag
       </button>
       <label>
-        Preset name
+        Navn på oppsett
         <input value={name} onChange={(e) => setName(e.target.value)} />
       </label>
       <button
@@ -184,15 +191,15 @@ export function FibEditor({
           setPresets(p);
         }}
       >
-        Save preset
+        Lagre oppsett
       </button>
       <select
-        aria-label="Load Fibonacci preset"
+        aria-label="Velg Fibonacci-oppsett"
         value=""
         onChange={(e) => change(presets[e.target.value])}
       >
         <option value="" disabled>
-          Load preset
+          Velg lagret oppsett
         </option>
         {Object.keys(presets).map((n) => (
           <option key={n}>{n}</option>

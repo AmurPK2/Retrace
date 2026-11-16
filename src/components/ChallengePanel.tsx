@@ -1,7 +1,9 @@
 import { useState } from "react";
+import { FOUNDATION_LESSONS } from "../core/rr-lessons";
 import {
   CHALLENGES,
   type ChallengeAnswer,
+  challengeProgress,
   type Learning,
 } from "../core/challenges";
 export function ChallengePanel({
@@ -61,18 +63,22 @@ export function ChallengePanel({
           {CHALLENGES.findIndex((x) => x[0] === c.stage) + 1} / 10 ·{" "}
           {def[nb ? 1 : 2]}
         </b>
-        <select
-          aria-label="Challenge language"
-          value={learning.language}
-          onChange={(e) =>
-            run({ type: "challenge.language", value: e.target.value })
-          }
-        >
-          <option value="nb">Norsk</option>
-          <option value="en">English</option>
-        </select>
       </div>
       <p>{def[nb ? 3 : 4]}</p>
+      {c.prior && (
+        <details open>
+          <summary>
+            {text(
+              "Tidligere låst beslutning til refleksjon",
+              "Earlier locked decision for reflection",
+            )}
+          </summary>
+          <blockquote>{c.prior.answer.reason}</blockquote>
+          {c.prior.checks.map((x, i) => (
+            <p key={i}>{x.detail}</p>
+          ))}
+        </details>
+      )}
       <button onClick={() => void run({ type: "challenge.end" })}>
         {text(
           "Tilbake til fri øving · behold forsøket",
@@ -89,8 +95,8 @@ export function ChallengePanel({
         </summary>
         <p>
           {text(
-            "Candlene under er ferdige. Gjeldende 4H vises som Forming på charten.",
-            "Candles below are completed. The current 4H is marked Forming on the chart.",
+            "Oppgaven vurderer bare ferdige candles under. Pågående 4H på charten er foreløpig og inngår ikke som ferdig bekreftelse.",
+            "This exercise assesses only completed candles below. The forming 4H on the chart is provisional and cannot supply a completed confirmation.",
           )}
         </p>
         {c.htf
@@ -98,8 +104,13 @@ export function ChallengePanel({
           .slice(-2)
           .map((b, i) => (
             <p key={b.time}>
-              {i === 0 ? "C1" : "C2"} · {new Date(b.time * 1000).toISOString()}{" "}
-              · O {b.open} · H {b.high} · L {b.low} · C {b.close}
+              {c.htf.length < 2
+                ? text("Siste ferdige", "Last completed")
+                : i === 0
+                  ? "C1"
+                  : "C2"}{" "}
+              · {new Date(b.time * 1000).toISOString()} · O {b.open} · H{" "}
+              {b.high} · L {b.low} · C {b.close}
             </p>
           ))}
       </details>
@@ -138,11 +149,17 @@ export function ChallengePanel({
                     <option key={x} value={x}>
                       {(
                         {
-                          "close-above": "Slutt over C1 / Close above C1",
-                          "close-below": "Slutt under C1 / Close below C1",
-                          wick: "Veke utenfor / Wick outside",
-                          inside: "Inne i C1 / Inside C1",
-                          missing: "Historikk mangler / History missing",
+                          "close-above": text(
+                            "Slutt over C1",
+                            "Close above C1",
+                          ),
+                          "close-below": text(
+                            "Slutt under C1",
+                            "Close below C1",
+                          ),
+                          wick: text("Veke utenfor", "Wick outside"),
+                          inside: text("Inne i C1", "Inside C1"),
+                          missing: text("Historikk mangler", "History missing"),
                         } as Record<string, string>
                       )[x] ?? x}
                     </option>
@@ -160,16 +177,17 @@ export function ChallengePanel({
                     setAnswer({ ...answer, decision: e.target.value as any })
                   }
                 >
-                  <option value="wait">Vent / Wait</option>
-                  <option value="buy">Kjøp / Buy</option>
-                  <option value="sell">Selg / Sell</option>
+                  <option value="wait">{text("Vent", "Wait")}</option>
+                  <option value="buy">{text("Kjøp", "Buy")}</option>
+                  <option value="sell">{text("Selg", "Sell")}</option>
                 </select>
               </label>
             )}
             {plans && (
               <>
-                {number("entry", "Entry 1")}
-                {c.stage === "two" && number("entry2", "Entry 2")}
+                {number("entry", text("Inngang 1", "Entry 1"))}
+                {c.stage === "two" &&
+                  number("entry2", text("Inngang 2", "Entry 2"))}
                 {number("sl", "SL")}
                 {c.stage !== "invalidation" && (
                   <>
@@ -221,12 +239,28 @@ export function ChallengePanel({
         </>
       ) : (
         <>
+          <p role="status">
+            {challengeProgress(c).mastered
+              ? text(
+                  "Demonstrert mestring i denne oppgaven",
+                  "Demonstrated mastery for this exercise",
+                )
+              : c.feedback?.assessment === "needs-practice"
+                ? text(
+                    "Svar gjennomført · prøv igjen",
+                    "Answer completed · revisit",
+                  )
+                : text(
+                    "Svar gjennomført · mestring ikke dokumentert ennå",
+                    "Answer completed · mastery not yet demonstrated",
+                  )}
+          </p>
           <blockquote>{c.answer.reason}</blockquote>
           {c.checks?.map((check, i) => (
             <div className="challenge-check" key={i}>
               <b>
                 {check.pass === null
-                  ? text("Til refleksjon", "For reflection")
+                  ? text("Uklart", "Unclear")
                   : check.pass
                     ? text("Oppfylt", "Met")
                     : text("Prøv igjen", "Revisit")}{" "}
@@ -277,6 +311,43 @@ export function ChallengePanel({
                   <p>{c.feedback.improve}</p>
                   <h5>{text("Neste steg", "Next step")}</h5>
                   <p>{c.feedback.next}</p>
+                  {c.feedback.reasoning && (
+                    <details>
+                      <summary>
+                        {text(
+                          "Kriterier og kildegrunnlag",
+                          "Criteria and evidence",
+                        )}
+                      </summary>
+                      {c.feedback.reasoning.map((row) => (
+                        <div key={row.criterion}>
+                          <b>
+                            {
+                              (nb
+                                ? FOUNDATION_LESSONS.find(
+                                    (x) => x.stage === c.stage,
+                                  )!.criteria
+                                : FOUNDATION_LESSONS.find(
+                                    (x) => x.stage === c.stage,
+                                  )!.criteriaEn)[
+                                Number(row.criterion.split(".")[1])
+                              ]
+                            }
+                          </b>
+                          <p>
+                            {row.verdict === "supported"
+                              ? text("Støttet", "Supported")
+                              : row.verdict === "contradicted"
+                                ? text("Motsagt", "Contradicted")
+                                : text("Uklart", "Unclear")}{" "}
+                            · {row.evidence}
+                          </p>
+                          <blockquote>{row.excerpt}</blockquote>
+                          <p>{row.explanation}</p>
+                        </div>
+                      ))}
+                    </details>
+                  )}
                   {c.feedback.note && <small>{c.feedback.note}</small>}
                 </>
               )
@@ -314,6 +385,15 @@ export function ChallengePanel({
               "The decision is assessed from what you knew then. The next candle does not change this assessment.",
             )}
           </p>
+          <button
+            disabled={busy || c.feedback?.status === "generating"}
+            onClick={() => run({ type: "challenge.start", stage: c.stage })}
+          >
+            {text(
+              "Prøv samme trinn igjen · behold forsøket",
+              "Retry this step · preserve attempt",
+            )}
+          </button>
           {!c.revealedAt ? (
             <button
               disabled={busy}
@@ -324,14 +404,13 @@ export function ChallengePanel({
           ) : (
             <>
               <p className="micro">
-                {text("Utførelse: ", "Execution: ")}
-                {c.outcome?.status}
+                {text(
+                  "Mer prisdata er vist. Den låste beslutningsvurderingen er uendret.",
+                  "More prices have been revealed. The locked decision assessment is unchanged.",
+                )}
               </p>
               <button onClick={() => run({ type: "challenge.next" })}>
-                {text(
-                  "Neste utfordring / nytt forsøk",
-                  "Next challenge / new attempt",
-                )}
+                {text("Start neste utfordring", "Start next challenge")}
               </button>
             </>
           )}

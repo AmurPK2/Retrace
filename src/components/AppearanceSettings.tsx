@@ -11,7 +11,7 @@ export function AppearanceSettings({
     [message, setMessage] = useState("");
   return (
     <section className="settings-section appearance-settings">
-      <h3>Appearance</h3>
+      <h3>Utseende</h3>
       <div className="palette-presets">
         {Object.entries(PALETTES).map(([key, p]) => (
           <button
@@ -42,10 +42,10 @@ export function AppearanceSettings({
       <div className="settings-grid">
         {(
           [
-            ["panelOpacity", "Panels", 20, 100],
-            ["zoneOpacity", "SL/TP zones", 0, 70],
-            ["gridOpacity", "Grid", 0, 100],
-            ["labelOpacity", "Labels", 30, 100],
+            ["panelOpacity", "Paneler", 20, 100],
+            ["zoneOpacity", "SL/TP-soner", 0, 70],
+            ["gridOpacity", "Rutenett", 0, 100],
+            ["labelOpacity", "Etiketter", 30, 100],
           ] as const
         ).map(([key, label, min, max]) => (
           <label className="field" key={key}>
@@ -68,7 +68,7 @@ export function AppearanceSettings({
           checked={look.minimal}
           onChange={(e) => setLook({ ...look, minimal: e.target.checked })}
         />
-        Minimal layout
+        Kompakt visning
       </label>
       <label className="checklist-row">
         <input
@@ -76,12 +76,12 @@ export function AppearanceSettings({
           checked={look.graphOrders}
           onChange={(e) => setLook({ ...look, graphOrders: e.target.checked })}
         />
-        Place and drag order levels on the chart
+        Plasser og dra ordrenivåer i chartet
       </label>
       <div className="settings-grid">
         {(["buy", "sell", "sl", "tp"] as const).map((key) => (
           <label className="field" key={key}>
-            <span>{key.toUpperCase()} line</span>
+            <span>{key.toUpperCase()}-linje</span>
             <input
               type="color"
               value={
@@ -114,20 +114,20 @@ export function AppearanceSettings({
               })
             }
           >
-            <option value="off">Off</option>
-            <option value="weak">Weak</option>
-            <option value="strong">Strong</option>
+            <option value="off">Av</option>
+            <option value="weak">Svak</option>
+            <option value="strong">Sterk</option>
           </select>
         </label>
         <button
           className="primary"
           onClick={() =>
             void save(look)
-              .then(() => setMessage("Saved"))
+              .then(() => setMessage("Lagret"))
               .catch((e) => setMessage(String(e)))
           }
         >
-          Apply appearance
+          Lagre utseende
         </button>
         <small>{message}</small>
       </div>

@@ -50,7 +50,7 @@ export function WorkspaceHelp() {
   return (
     <div className="workspace-help">
       <section>
-        <h3>De seks knappene over charten</h3>
+        <h3>Knappene over charten</h3>
         <dl className="shortcut-guide">
           <dt>Ny ordre</dt>
           <dd>
@@ -63,15 +63,10 @@ export function WorkspaceHelp() {
             charten. Klikk overskriften på indikatoren for bredde, farger og
             tidsramme.
           </dd>
-          <dt>Lær 4H</dt>
+          <dt>Lær og øv</dt>
           <dd>
-            Åpne trinnvis forklaring og video. Start her hvis candle-begrepene
-            er nye.
-          </dd>
-          <dt>Utfordringer</dt>
-          <dd>
-            Svar på oppgaver i din nåværende økt. Lås svaret, få tilbakemelding,
-            og avslør deretter neste candle.
+            Én læringssti med ti trinn, seks videoguider og bevarte forsøk. Lås
+            svaret før avsløring. Fakta og begrunnelse vurderes hver for seg.
           </dd>
           <dt>Tegninger</dt>
           <dd>
@@ -90,7 +85,7 @@ export function WorkspaceHelp() {
         <p>
           Høyreklikk ved ønsket pris og velg en ordre. Dra inngang, SL og TP
           hver for seg. Størrelsen i lots står rett ved inngangsnivået.
-          Kontroller kontant risiko og trykk <b>Place order</b> for å legge
+          Kontroller kontant risiko og trykk <b>Legg inn ordre</b> for å legge
           ordren inn i replayen.
         </p>
         <p>
@@ -102,7 +97,7 @@ export function WorkspaceHelp() {
       <section>
         <h3>La coachen vurdere oppsettet</h3>
         <p>
-          Åpne Assistant og trykk <b>Vurder oppsettet</b>. Coachen leser synlige
+          Åpne Coach og trykk <b>Vurder oppsettet</b>. Coachen leser synlige
           candles, tegninger, ordre og lagrede regler ved replay-tiden. Du kan
           også stille et vanlig spørsmål. Skjermbilde brukes som støtte, mens
           beregnede priser og risiko kommer fra appens data.
