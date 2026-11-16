@@ -1,5 +1,5 @@
 import { DEFAULT_SPECS, type Specs } from "../types";
-export type InstrumentId = "XAUUSD" | "EURAUD" | "NAS100" | "NQ";
+export type InstrumentId = "XAUUSD" | "EURAUD" | "NAS100";
 export const INSTRUMENTS: Record<
   InstrumentId,
   {
@@ -59,26 +59,6 @@ export const INSTRUMENTS: Record<
       currency: "USD",
       unit: "CFD units",
       tickSize: 0.001,
-    },
-  },
-  NQ: {
-    name: "NQ futures · data required",
-    symbol: "NQ",
-    dataset: "NQ",
-    divisor: 1,
-    currency: "USD",
-    unit: "contract ($20 / index point)",
-    available: false,
-    specs: {
-      ...DEFAULT_SPECS,
-      contract: 20,
-      minLot: 1,
-      lotStep: 1,
-      leverage: 1,
-      precision: 2,
-      currency: "USD",
-      unit: "contracts",
-      tickSize: 0.25,
     },
   },
 };

@@ -1,6 +1,6 @@
 import { FRAMES, type Bar, type Session } from "../types";
 import { draftIssues, combinedPlanRisk } from "./order-validation";
-export const CHALLENGE_VERSION = "retrace-foundations-v1";
+export const CHALLENGE_VERSION = "retrace-foundations-v2";
 export const CHALLENGES = [
   [
     "candles",
@@ -92,6 +92,17 @@ export type ChallengeCheck = {
   pass: boolean | null;
   detail: string;
 };
+export type ChallengeFeedback = {
+  status: "generating" | "complete";
+  source: "model" | "checks";
+  at: number;
+  assessment: "checked" | "needs-practice" | "unclear";
+  good: string;
+  improve: string;
+  next: string;
+  evidence?: string[];
+  note?: string;
+};
 export type Challenge = {
   id: string;
   version: string;
@@ -106,10 +117,13 @@ export type Challenge = {
   specs: Session["broker"]["specs"];
   drawings: Session["drawings"];
   orders: Session["broker"]["pending"];
+  strategy?: Session["notebook"];
+  feedback?: ChallengeFeedback;
   answer?: ChallengeAnswer;
   committedAt?: number;
   committedSeq?: number;
   checks?: ChallengeCheck[];
+  endedAt?: number;
   revealedAt?: number;
   outcome?: { from: number; to: number; status: string; balance: number };
 };
@@ -144,6 +158,7 @@ export function beginChallenge(
     specs: { ...s.broker.specs },
     drawings: structuredClone(s.drawings),
     orders: structuredClone(s.broker.pending),
+    strategy: structuredClone(s.notebook),
   };
 }
 export function pairClass(c: Challenge) {
@@ -337,6 +352,8 @@ export function commitChallenge(
   s: Session,
   nb = true,
 ) {
+  if (c.endedAt)
+    throw Error("Start a fresh challenge after returning to free practice.");
   if (c.answer)
     throw Error("This answer is already locked. Start the next attempt.");
   if (
@@ -354,5 +371,6 @@ export function commitChallenge(
   c.committedSeq = s.broker.seq;
   c.drawings = structuredClone(s.drawings);
   c.orders = structuredClone(s.broker.pending);
+  c.strategy = structuredClone(s.notebook);
   c.checks = checkChallenge(c, a, nb);
 }
