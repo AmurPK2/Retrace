@@ -171,8 +171,7 @@ test("EURAUD and NAS CFD have distinct data symbols, native units, margins and i
     20,
   );
   assert.equal(INSTRUMENTS.EURAUD.specs.currency, "AUD");
-  assert.equal(INSTRUMENTS.NQ.available, false);
-  assert.notEqual(INSTRUMENTS.NQ.dataset, INSTRUMENTS.NAS100.dataset);
+  assert.deepEqual(Object.keys(INSTRUMENTS), ["XAUUSD", "EURAUD", "NAS100"]);
   assert.ok(
     draftIssues(
       { ...order, entry: 25000, lots: 0.01 },
@@ -327,6 +326,8 @@ test("public IPC exposes the completed instrument and challenge actions", () => 
   );
   for (const command of [
     "instrument",
+    "challenge.start",
+    "challenge.feedback",
     "challenge.language",
     "challenge.commit",
     "challenge.reveal",
@@ -353,4 +354,129 @@ test("single HTF candle uses only the current UTC bucket and never substitutes a
   assert.deepEqual(htfCandles(bars.slice(0, 2), base + 14400000, "4H", 1), []);
   assert.deepEqual(htfCandles(bars.slice(0, 1), base + 265000, "4H", 1), []);
   assert.equal(htfCandles(bars, base + 265000, "4H", 3).length, 2);
+});
+
+test("Challenge tutor snapshot preserves the frozen decision and excludes all revealed outcomes", async () => {
+  const { challengeSnapshot } = await import("../src/ai/challenge-feedback");
+  const s = session(),
+    c = beginChallenge(
+      s,
+      [bar(base, 2010, 2020, 2000, 2015)],
+      [bar(base - 14400000, 2000, 2020, 1990, 2010)],
+      "frames",
+    );
+  commitChallenge(
+    c,
+    {
+      value: 16,
+      reason: "15m viser bevegelsen inne i fire timer, uten å vise fremtiden.",
+    },
+    s,
+  );
+  const before = challengeSnapshot(c);
+  c.revealedAt = s.tick.t + 900000;
+  c.outcome = {
+    from: s.tick.t,
+    to: s.tick.t + 900000,
+    status: "won",
+    balance: 99999,
+  };
+  s.tick.bid = 99999;
+  s.notebook.text = "changed future rule";
+  s.broker.balance = 99999;
+  assert.deepEqual(challengeSnapshot(c), before);
+  assert.ok(!JSON.stringify(before).includes("99999"));
+  assert.equal(before.answer.value, 16);
+  assert.equal(before.higherTimeframe[0].completed, true);
+});
+
+test("Challenge AI cannot invent quotes, numbers, praise failed facts or choose unrelated teaching rules", async () => {
+  const { parseChallengeFeedback, challengeFallback } =
+    await import("../src/ai/challenge-feedback");
+  const s = session(),
+    c = beginChallenge(s, [], [], "frames");
+  const reason = "Jeg tror åtte perioder dekker fire timer.";
+  commitChallenge(c, { value: 8, reason }, s);
+  const reply = {
+    assessment: "needs-practice",
+    excerpt: reason,
+    focus: "calculation",
+  };
+  const feedback = parseChallengeFeedback(JSON.stringify(reply), c);
+  assert.equal(feedback.source, "model");
+  assert.ok(feedback.improve.includes("240"));
+  assert.ok(feedback.improve.includes("16"));
+  assert.ok(feedback.good.includes(reason));
+  assert.throws(
+    () =>
+      parseChallengeFeedback(
+        JSON.stringify({ ...reply, assessment: "checked" }),
+        c,
+      ),
+    /contradicts/,
+  );
+  assert.throws(
+    () =>
+      parseChallengeFeedback(
+        JSON.stringify({ ...reply, excerpt: "Jeg observerte pris 987654.321" }),
+        c,
+      ),
+    /actual answer/,
+  );
+  assert.throws(
+    () =>
+      parseChallengeFeedback(
+        JSON.stringify({ ...reply, focus: "guaranteed_win" }),
+        c,
+      ),
+    /focus/,
+  );
+  assert.throws(() =>
+    parseChallengeFeedback(
+      JSON.stringify({
+        assessment: "checked",
+        good: "always 16 candles",
+        improve: "invented",
+        next: "invented",
+      }),
+      c,
+    ),
+  );
+  assert.equal(challengeFallback(c).assessment, "needs-practice");
+});
+
+test("An open-ended challenge cannot be certified checked by the model", async () => {
+  const { parseChallengeFeedback } =
+    await import("../src/ai/challenge-feedback");
+  const s = session(),
+    c = beginChallenge(s, [], [], "wait"),
+    reason = "Jeg kjøper fordi den siste candlen er grønn.";
+  commitChallenge(
+    c,
+    { decision: "buy", confirmation: "En grønn candle", reason },
+    s,
+  );
+  assert.throws(
+    () =>
+      parseChallengeFeedback(
+        JSON.stringify({
+          assessment: "checked",
+          excerpt: reason,
+          focus: "confirmation",
+        }),
+        c,
+      ),
+    /remains unclear/,
+  );
+  assert.equal(
+    parseChallengeFeedback(
+      JSON.stringify({
+        assessment: "unclear",
+        excerpt: reason,
+        focus: "confirmation",
+      }),
+      c,
+    ).assessment,
+    "unclear",
+  );
 });

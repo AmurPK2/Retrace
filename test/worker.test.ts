@@ -778,3 +778,97 @@ test("independent drawing property edits do not reinstate hidden state or overwr
     f.cleanup();
   }
 });
+
+test("challenge can start in an existing session, preserves abandoned attempts and saves feedback across restart", async () => {
+  const f = fixture();
+  let w = worker(f.root);
+  try {
+    await w.call({ type: "sessions.new", timestamp: f.base + 25 * 3600000 });
+    let state = await w.call({ type: "state" });
+    const original = structuredClone(state.session);
+    await w.call({
+      type: "ai.settings",
+      value: { ...state.settings, enabled: false },
+    });
+    await w.call({ type: "challenge.start", stage: "frames" });
+    let s = (await w.call({ type: "state" })).session;
+    assert.equal(s.id, original.id);
+    assert.deepEqual(s.broker, original.broker);
+    assert.deepEqual(s.drawings, original.drawings);
+    assert.deepEqual(s.chat, original.chat);
+    assert.deepEqual(s.tick, original.tick);
+    const abandoned = s.learning.active.id;
+    await w.call({ type: "challenge.start", stage: "frames" });
+    s = (await w.call({ type: "state" })).session;
+    assert.equal(s.learning.history[0].id, abandoned);
+    await w.call({
+      type: "challenge.commit",
+      id: s.learning.active.id,
+      value: { value: 8, reason: "Jeg teller åtte perioder i fire timer." },
+    });
+    await w.call({ type: "challenge.feedback", id: s.learning.active.id });
+    s = (await w.call({ type: "state" })).session;
+    assert.equal(s.learning.active.feedback.assessment, "needs-practice");
+    assert.equal(s.learning.active.feedback.source, "checks");
+    await w.call({ type: "shutdown" });
+    await w.instance.terminate();
+    w = worker(f.root);
+    assert.deepEqual(
+      (await w.call({ type: "state" })).session.learning,
+      s.learning,
+    );
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
+
+test("interrupted challenge review recovers its answer and can return to free practice", async () => {
+  const f = fixture();
+  let w = worker(f.root);
+  try {
+    await w.call({ type: "sessions.new", timestamp: f.base + 25 * 3600000 });
+    await w.call({ type: "challenge.start", stage: "frames" });
+    let s = (await w.call({ type: "state" })).session;
+    await w.call({
+      type: "challenge.commit",
+      id: s.learning.active.id,
+      value: {
+        value: 16,
+        reason: "Jeg regner om fire timer til minutter og deler på femten.",
+      },
+    });
+    s = (await w.call({ type: "state" })).session;
+    await w.call({ type: "shutdown" });
+    await w.instance.terminate();
+    const store = new Store(f.root);
+    const saved = store.load(s.id)!;
+    saved.learning!.active.feedback!.status = "generating";
+    store.save(saved);
+    store.close();
+    w = worker(f.root);
+    let restored = (await w.call({ type: "state" })).session;
+    assert.equal(restored.learning.active.feedback.status, "complete");
+    assert.equal(restored.learning.active.feedback.source, "checks");
+    assert.deepEqual(restored.learning.active.answer, s.learning.active.answer);
+    await w.call({ type: "challenge.start", stage: "candles" });
+    restored = (await w.call({ type: "state" })).session;
+    const id = restored.learning.active.id;
+    await assert.rejects(
+      w.call({ type: "step", kind: "candle" }),
+      /Lås svaret/,
+    );
+    await w.call({ type: "challenge.end" });
+    await w.call({ type: "step", kind: "candle" });
+    s = (await w.call({ type: "state" })).session;
+    assert.ok(s.learning.active.endedAt);
+    assert.equal(s.learning.active.id, id);
+    assert.equal(s.learning.active.answer, undefined);
+    assert.ok(s.tick.t > restored.tick.t);
+    await w.call({ type: "shutdown" });
+  } finally {
+    await w.instance.terminate();
+    f.cleanup();
+  }
+});
