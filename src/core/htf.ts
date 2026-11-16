@@ -12,8 +12,8 @@ export type HTFSettings = {
 export const DEFAULT_HTF: HTFSettings = {
   enabled: true,
   timeframe: "4H",
-  count: 3,
-  width: 32,
+  count: 1,
+  width: 56,
   gap: 18,
   up: "#ff9b4a",
   down: "#a0a0a0",
@@ -22,17 +22,22 @@ export const DEFAULT_HTF: HTFSettings = {
 // Input is produced by Replay.bars at the exact tick cutoff, never by an
 // unrestricted historical OHLC request. UTC buckets do not move with DST.
 export function htfCandles(bars: Bar[], cutoff: number, tf: TF, count: number) {
-  return bars
-    .filter((b) => b.time * 1000 <= cutoff)
-    .slice(-count)
-    .map((b) => ({
-      ...b,
-      closed: (b.time + FRAMES[tf]) * 1000 <= cutoff,
-      remaining: Math.max(
-        0,
-        Math.ceil(((b.time + FRAMES[tf]) * 1000 - cutoff) / 1000),
-      ),
-    }));
+  const currentStart = Math.floor(cutoff / (FRAMES[tf] * 1000)) * FRAMES[tf];
+  return (
+    bars
+      .filter((b) => b.time * 1000 <= cutoff)
+      // Single-candle mode never substitutes a previous closed candle during a gap.
+      .filter((b) => count !== 1 || b.time === currentStart)
+      .slice(-count)
+      .map((b) => ({
+        ...b,
+        closed: (b.time + FRAMES[tf]) * 1000 <= cutoff,
+        remaining: Math.max(
+          0,
+          Math.ceil(((b.time + FRAMES[tf]) * 1000 - cutoff) / 1000),
+        ),
+      }))
+  );
 }
 export function countdown(seconds: number) {
   return [
