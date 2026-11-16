@@ -11,6 +11,8 @@ import { Store, sha, atomicWrite } from "./store";
 import { fromTicks, knownClosure } from "../core/bars";
 import { type Tick } from "../types";
 import path from "node:path";
+import { readFileSync } from "node:fs";
+import { tickGaps } from "./quality";
 // Price step is explicitly sourced from Dukascopy's XAU/USD instrument metadata,
 // NOT a symbol-length heuristic. See docs/DATA.md and the pinned metadata receipt.
 export const DUKA = {
@@ -143,7 +145,7 @@ export class Importer {
     for (const c of this.active) c.abort();
     this.notify(this.progress);
   }
-  async fetch(hour: number) {
+  async fetch(hour: number): Promise<Buffer | null> {
     let last: Error | undefined;
     for (let i = 0; i < 4; i++) {
       if (this.paused) throw Error("Import paused.");
@@ -188,8 +190,13 @@ export class Importer {
     for (let i = 0; i < 21; i++, day -= 86400000) {
       if (closedHour(day + 12 * 3600000, this.instrument)) continue;
       const cached = this.store.chunk(this.dataset, day + 12 * 3600000);
-      if (cached?.status === "ready" && this.store.readTicks(cached).length)
-        return day;
+      if (cached?.status === "ready") {
+        try {
+          if (this.store.readTicks(cached).length) return day;
+        } catch {
+          /* Continue to the original source; range() repairs the cache. */
+        }
+      }
       const data = await this.fetch(day + 12 * 3600000);
       if (data?.length) {
         const { ticks } = await decodeBi5(
@@ -256,7 +263,22 @@ export class Importer {
         }
         const hour = queue.shift()!;
         this.progress.current = new Date(hour).toISOString();
-        const old = this.store.chunk(this.dataset, hour);
+        let old = this.store.chunk(this.dataset, hour);
+        // A corrupt cache is recoverable in this same pass. Do not need two imports.
+        if (old?.status === "closure" && !closedHour(hour, this.instrument))
+          old = undefined;
+        if (old?.status === "ready") {
+          try {
+            const cachedTicks = this.store.readTicks(old);
+            if (
+              JSON.parse(old.provenance).unexpectedGaps?.length ||
+              tickGaps(cachedTicks, hour, this.instrument).length
+            )
+              old = undefined;
+          } catch {
+            old = undefined;
+          }
+        }
         try {
           if (old && ["ready", "closure"].includes(old.status)) {
             if (old.status === "ready") this.store.readTicks(old);
@@ -280,7 +302,42 @@ export class Importer {
               }),
             });
           } else {
-            const data = await this.fetch(hour);
+            let data: Buffer | null = null;
+            let recoveredSource = false;
+            // Reuse original compressed bytes only with an existing SHA receipt.
+            try {
+              const receipt = this.store.chunk(this.dataset, hour);
+              const expected =
+                receipt && JSON.parse(receipt.provenance).sourceSha256;
+              if (expected) {
+                const original = readFileSync(
+                  path.join(
+                    this.store.marketRoot,
+                    "source",
+                    this.metadata.symbol,
+                    `${hour}.bi5`,
+                  ),
+                );
+                if (sha(original) === expected) {
+                  const decoded = await decodeBi5(
+                    original,
+                    hour,
+                    this.metadata.divisor,
+                  );
+                  if (
+                    decoded.ticks.length &&
+                    !decoded.invalid &&
+                    !tickGaps(decoded.ticks, hour, this.instrument).length
+                  ) {
+                    data = original;
+                    recoveredSource = true;
+                  }
+                }
+              }
+            } catch {
+              /* Unverified originals cannot repair a cache. Fetch instead. */
+            }
+            if (!data) data = await this.fetch(hour);
             if (!data?.length) {
               this.store.putChunk({
                 dataset: this.dataset,
@@ -312,13 +369,12 @@ export class Importer {
                 ),
                 data,
               );
-              const unexpectedGaps = result.ticks.flatMap((q, i) =>
-                i > 0 &&
-                q.t - result.ticks[i - 1].t > 300000 &&
-                openGapMillis(result.ticks[i - 1].t, q.t, this.instrument) >
-                  300000
-                  ? [{ from: result.ticks[i - 1].t, to: q.t }]
-                  : [],
+              if (result.invalid)
+                throw Error("Invalid source ticks; hour remains unavailable.");
+              const unexpectedGaps = tickGaps(
+                result.ticks,
+                hour,
+                this.instrument,
               );
               const c = this.store.writeTicks(
                 this.dataset,
@@ -327,6 +383,7 @@ export class Importer {
                 {
                   url: urlFor(hour, this.instrument),
                   downloadedAt: Date.now(),
+                  recoveredSource,
                   sourceSha256: sha(data),
                   ...this.metadata,
                   invalid: result.invalid,

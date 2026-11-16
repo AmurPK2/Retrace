@@ -171,6 +171,13 @@ export class Store {
           c.sha,
           c.provenance,
         );
+      // Replacement is a whole-hour snapshot, never an append to old bars.
+      this.db
+        .prepare("DELETE FROM bars WHERE dataset=? AND time>=? AND time<?")
+        .run(c.dataset, c.hour / 1000, (c.hour + 3600000) / 1000);
+      this.db
+        .prepare("DELETE FROM hourbars WHERE dataset=? AND time=?")
+        .run(c.dataset, c.hour / 1000);
       const put = this.db.prepare(
         "INSERT OR REPLACE INTO bars VALUES(?,?,?,?,?,?,?)",
       );
@@ -235,7 +242,21 @@ export class Store {
       throw Error("Invalid chunk path.");
     const bytes = readFileSync(target);
     if (sha(bytes) !== c.sha) throw Error("Integrity failure in " + c.hour);
-    return decodeTicks(gunzipSync(bytes));
+    const ticks = decodeTicks(gunzipSync(bytes));
+    if (
+      ticks.length !== c.count ||
+      !ticks.length ||
+      ticks[0].t !== c.first ||
+      ticks.at(-1)!.t !== c.last ||
+      ticks.some(
+        (q, i) =>
+          q.t < c.hour ||
+          q.t >= c.hour + 3600000 ||
+          (i > 0 && q.t < ticks[i - 1].t),
+      )
+    )
+      throw Error("Tick metadata/time integrity failure in " + c.hour);
+    return ticks;
   }
   checkpoint() {
     this.db.exec("PRAGMA wal_checkpoint(FULL)");
@@ -278,7 +299,7 @@ export function encodeTicks(ticks: Tick[]) {
 }
 export function decodeTicks(b: Buffer): Tick[] {
   if (b.length % 32) throw Error("Corrupt tick chunk.");
-  const out = [];
+  const out: Tick[] = [];
   for (let o = 0; o < b.length; o += 32)
     out.push({
       t: b.readDoubleLE(o),
@@ -287,5 +308,17 @@ export function decodeTicks(b: Buffer): Tick[] {
       bv: b.readFloatLE(o + 24),
       av: b.readFloatLE(o + 28),
     });
+  if (
+    out.some(
+      (q, i) =>
+        ![q.t, q.bid, q.ask, q.bv, q.av].every(Number.isFinite) ||
+        q.bid <= 0 ||
+        q.ask < q.bid ||
+        q.bv! < 0 ||
+        q.av! < 0 ||
+        (i > 0 && q.t < out[i - 1].t),
+    )
+  )
+    throw Error("Invalid or unordered tick values.");
   return out;
 }
