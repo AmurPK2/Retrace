@@ -28,6 +28,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { Store, atomicWrite, sha } from "../src/data/store";
 import { Replay } from "../src/core/replay";
+import { dataQuality } from "../src/data/quality";
 import { resolveLevelDraft } from "../src/core/order-draft";
 import {
   place,
@@ -758,7 +759,7 @@ async function dispatch(c: Command): Promise<any> {
           p.settings = {
             ...settings,
             structured: false,
-            maxTokens: 900,
+            maxTokens: 1400,
             context: Math.max(8192, settings.context),
           };
           if (!p.instance) await p.load();
@@ -1639,19 +1640,32 @@ async function dispatch(c: Command): Promise<any> {
       await stopImport();
       playing = false;
       if (s) save();
-      dataset = INSTRUMENTS[id].dataset;
-      store.set("activeDataset", dataset);
-      const existing = store
-        .list()
-        .map((a) => store.load(String(a.id)))
-        .find((a) => a?.dataset === dataset);
-      if (existing) {
-        recoverChallenge(existing);
-        replay.setSession(existing);
-      } else {
-        replay.session = null;
-        if (replay.eligible(dataset).length) replay.newSession(dataset);
-        else startImport({ instrument: id, starter: true });
+      const previousDataset = dataset,
+        previousSession = s;
+      try {
+        dataset = INSTRUMENTS[id].dataset;
+        const existing = store
+          .list()
+          .map((a) => store.load(String(a.id)))
+          .find((a) => a?.dataset === dataset);
+        if (existing) {
+          recoverChallenge(existing);
+          replay.setSession(existing);
+        } else {
+          replay.session = null;
+          if (replay.eligible(dataset).length) replay.newSession(dataset);
+          else startImport({ instrument: id, starter: true });
+        }
+
+        store.set("activeDataset", dataset);
+      } catch (error) {
+        dataset = previousDataset;
+        replay.session = previousSession;
+        if (previousSession) replay.setSession(previousSession);
+        store.set("activeDataset", previousDataset);
+        store.set("lastSession", previousSession?.id ?? null);
+        publish();
+        throw error;
       }
       publish();
       return;
@@ -1868,6 +1882,37 @@ async function dispatch(c: Command): Promise<any> {
           if (decision?.strategy) fullContext.strategy = decision.strategy;
         }
         fullContext.reviewAtDecision = decision;
+        // COACH integration: verify only the evidence window at its own decision time.
+        const evidenceCutoff = selected
+          ? (decision?.cutoff ?? selected.opened)
+          : s.tick.t;
+        const evidenceBars =
+          selected && decision
+            ? [
+                ...decision.candles,
+                ...decision.secondCandles,
+                ...fullContext.higherTimeframe.candles,
+              ]
+            : [
+                ...fullContext.candles,
+                ...fullContext.secondCandles.slice(-12),
+                ...fullContext.higherTimeframe.candles,
+              ];
+        const evidenceFrom = Math.min(
+          evidenceCutoff,
+          ...evidenceBars.map((b) => b.time * 1000),
+          ...(selected
+            ? []
+            : fullContext.selectedRange
+              ? [fullContext.selectedRange.c1.time * 1000]
+              : []),
+        );
+        fullContext.dataQuality = dataQuality(
+          store,
+          s.dataset,
+          evidenceFrom,
+          evidenceCutoff,
+        );
         const visual = settings.vision || review || wantsChartAnalysis(prompt);
         const currentImage =
           visual && c.screenshot ? String(c.screenshot) : null;
@@ -1946,6 +1991,21 @@ async function dispatch(c: Command): Promise<any> {
         generating = (async () => {
           await Promise.resolve(); // Assign the task before a synchronous saved-data reply finishes.
           try {
+            // COACH integration: gaps are an explicit abstention, never a model-approved setup.
+            if (context.dataQuality?.status === "insufficient") {
+              reply.text =
+                replyLanguage(prompt) === "Norwegian"
+                  ? "Uklart: prisgrunnlaget ved beslutningstidspunktet er ufullstendig eller korrupt. Jeg kan ikke bekrefte oppsettet med denne historikken. Importer det manglende intervallet på nytt i Data. Vanlig markedspause er forskjellig fra ukjent datatap; jeg fyller ikke inn oppdiktede candles. Behold inngang, SL og TP som en plan til datagrunnlaget er kontrollert. Neste steg: reparer intervallet og vurder oppsettet på nytt ved samme replay-tid."
+                  : "Unclear: historical prices at the decision time are incomplete or corrupt. Setup validity cannot be confirmed from this history. Reimport the missing interval in Data. A known market break differs from unknown data loss; no candles are invented. Keep entry, SL and TP as a plan until the data is checked. Next: repair that interval and assess again at the same replay time.";
+              reply.savedFacts = true;
+              reply.status = "complete";
+              ai = {
+                ...ai,
+                state: "ready",
+                message: "Incomplete historical evidence; assessment blocked.",
+              };
+              return;
+            }
             const historyAnswer = savedHistoryAnswer(s, prompt);
             if (historyAnswer) {
               reply.text = historyAnswer;
