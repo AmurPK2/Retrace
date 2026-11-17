@@ -188,6 +188,8 @@ export const DEFAULT_RR_PROGRESS: RRProgress = {
   completed: [],
 };
 export function lessonSource(lesson: unknown, index: unknown) {
+  if (lesson === "fvg" && index === 0)
+    return "https://www.youtube.com/watch?v=Bkt8B3kLATQ";
   if (lesson === "po3" && index === 0)
     return "https://www.youtube.com/watch?v=jWxR9OZDDR4&t=251s";
   if (typeof index !== "number" || !Number.isInteger(index) || index < 0)
