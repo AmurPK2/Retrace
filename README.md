@@ -27,6 +27,12 @@ Internet is needed for initial downloads. Replay and local AI can then work offl
 
 This is a simulated replay workspace, with no broker order route. Balances, positions and Discord numbers are practice results. The local model can still make mistakes; its answer is not proof of a trading edge.
 
+## Interactive RR learning in 0.5.0
+
+**Lær og øv → RR · se og gjør** opens eight chart exercises. **Vis meg** highlights actual candles and levels; **Prøv selv** lets you click prices/candles and drag the plan before receiving factual feedback. The same frozen historical period is available on 4H, 15m and 1m. Lock a plan or Wait before revealing C3. Main replay, orders and drawings remain in place; visual attempts survive restart and session backup.
+
+The original written course and six offline guides are still available in the adjacent tab. These are RR building-block exercises with explicit rules, not a complete verified RR/CISD strategy or an AI accuracy certification. See [0.5.0 behavior and limits](docs/RELEASE-0.5.0.md).
+
 ## Clear chart and learning workflow in 0.4.0
 
 Right-click the chart and choose **New order draft here**. ENTRY, SL and TP move independently; invalid geometry stays visible until corrected. **Place order** confirms the simulator order. Change size on the draft or pending line; filled quantities remain execution history. **Add entry · same setup** keeps a shared setup and stop while allowing a separate entry/target. Combined planned risk counts each entry once.

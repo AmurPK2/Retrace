@@ -786,6 +786,20 @@ export const Chart = forwardRef<
       setSnapPoint(null);
     return next;
   };
+  const cancelGesture = () => {
+    linePlacement.current = null;
+    lastLinePoint.current = null;
+    drag.current = null;
+    setDraft(null);
+    setChanged(null);
+    setProtect(null);
+    setOrderPreview(null);
+    setSnapPoint(null);
+    chart.current?.applyOptions({
+      handleScroll: tool === "select" && !picker && !studyPicking,
+      handleScale: tool === "select" && !picker && !studyPicking,
+    });
+  };
   const refreshLinePreview = (shift: boolean) => {
     const p = lastLinePoint.current;
     if (!p) return;
@@ -862,14 +876,10 @@ export const Chart = forwardRef<
     if (
       event.type === "keydown" &&
       event.key === "Escape" &&
-      (linePlacement.current || ["new", "move"].includes(drag.current?.type))
+      (linePlacement.current || drag.current)
     ) {
-      linePlacement.current = null;
-      lastLinePoint.current = null;
-      drag.current = null;
-      setDraft(null);
-      setChanged(null);
-      setSnapPoint(null);
+      event.preventDefault();
+      cancelGesture();
     }
   };
   const start = (e: React.PointerEvent<SVGSVGElement>) => {
@@ -884,7 +894,10 @@ export const Chart = forwardRef<
           !e.altKey,
         e.ctrlKey,
       ),
-      target = e.target as SVGElement,
+      target =
+        (e.target as SVGElement).closest<SVGElement>(
+          "[data-order-role], [data-pending], [data-position]",
+        ) ?? (e.target as SVGElement),
       id = target.closest<SVGElement>("[data-id]")?.dataset.id,
       handle = target.dataset.handle;
     if (
@@ -901,7 +914,8 @@ export const Chart = forwardRef<
       chart.current?.applyOptions({ handleScroll: false, handleScale: false });
     }
     lastLinePoint.current = p;
-    if (studyPicking && onStudyPick) {
+    const creating = target.dataset.createProtection === "true";
+    if (!creating && studyPicking && onStudyPick) {
       const nearest = bars.reduce((a, b) =>
         Math.abs(x(a.time) - (e.clientX - rect.left)) <=
         Math.abs(x(b.time) - (e.clientX - rect.left))
@@ -912,12 +926,21 @@ export const Chart = forwardRef<
       onStudyPick(nearest.time);
       return;
     }
-    if (picker && onOrderLevel) {
+    if (!creating && picker && onOrderLevel) {
       onOrderLevel(picker, p.price);
       return;
     }
-    if (tool === "select" && target.dataset.orderRole && onOrderLevel) {
-      drag.current = { type: "order", role: target.dataset.orderRole };
+    if (
+      (tool === "select" || creating) &&
+      target.dataset.orderRole &&
+      onOrderLevel
+    ) {
+      drag.current = {
+        type: "order",
+        role: target.dataset.orderRole,
+        creating,
+        startY: e.clientY,
+      };
       drag.current.original = orderDraft;
       setOrderPreview({
         role: target.dataset.orderRole as OrderLevel,
@@ -927,11 +950,18 @@ export const Chart = forwardRef<
       e.preventDefault();
       return;
     }
-    if (tool === "select" && target.dataset.position) {
+    if ((tool === "select" || creating) && target.dataset.position) {
       const pos = s.broker.positions.find(
         (p) => p.id === target.dataset.position,
       )!;
-      drag.current = { type: "protect", pos, kind: target.dataset.kind };
+      if (!pos) return;
+      drag.current = {
+        type: "protect",
+        pos,
+        kind: target.dataset.kind,
+        creating,
+        startY: e.clientY,
+      };
       setProtect({
         id: pos.id,
         kind: target.dataset.kind as any,
@@ -940,12 +970,18 @@ export const Chart = forwardRef<
       e.currentTarget.setPointerCapture(e.pointerId);
       return;
     }
-    if (tool === "select" && target.dataset.pending) {
+    if ((tool === "select" || creating) && target.dataset.pending) {
       const order = s.broker.pending.find(
         (p) => p.id === target.dataset.pending,
       );
       if (!order) return;
-      drag.current = { type: "pending", order, role: target.dataset.kind };
+      drag.current = {
+        type: "pending",
+        order,
+        role: target.dataset.kind,
+        creating,
+        startY: e.clientY,
+      };
       setOrderPreview({
         role: target.dataset.kind as OrderLevel,
         price: p.price,
@@ -1050,6 +1086,14 @@ export const Chart = forwardRef<
   };
   const finish = (e: React.PointerEvent<SVGSVGElement>) => {
     if (!drag.current) return;
+    // A click or a cancelled gesture must not create protection at the entry.
+    if (
+      drag.current.creating &&
+      Math.abs(e.clientY - drag.current.startY) < 4
+    ) {
+      cancelGesture();
+      return;
+    }
     const rect = e.currentTarget.getBoundingClientRect(),
       pointAtRelease = point(
         e.clientX - rect.left,
@@ -1189,6 +1233,89 @@ export const Chart = forwardRef<
       tp: next.tp,
     };
   });
+  // Creation handles are separate targets: they never reuse the entry gesture.
+  const protectionHandles = (
+    owner: "draft" | "pending" | "position",
+    id: string,
+    entry: number,
+    side: "buy" | "sell",
+    sl: number | undefined,
+    tp: number | undefined,
+    labelX: number,
+  ) => {
+    const yy = y(entry);
+    if (!Number.isFinite(yy)) return null;
+    return (["sl", "tp"] as const).map((role, index) => {
+      if ((role === "sl" ? sl : tp) !== undefined) return null;
+      const color = role === "sl" ? tradeColors.sl : tradeColors.tp;
+      const xx =
+        Math.max(172, Math.min(dims.w - 194, labelX - 118)) + index * 57;
+      const label = "Add " + role.toUpperCase() + " to " + owner + " " + id;
+      return (
+        <g
+          key={owner + id + role}
+          role="button"
+          tabIndex={0}
+          aria-label={label}
+          className="protection-create-handle"
+          data-create-protection="true"
+          data-order-role={owner === "draft" ? role : undefined}
+          data-pending={owner === "pending" ? id : undefined}
+          data-position={owner === "position" ? id : undefined}
+          data-kind={role}
+          style={{ pointerEvents: "all", cursor: "ns-resize" }}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" && event.key !== " ") return;
+            event.preventDefault();
+            event.stopPropagation();
+            const direction =
+              (side === "buy" ? 1 : -1) * (role === "sl" ? 1 : -1);
+            const value = series.current?.coordinateToPrice(
+              yy + direction * 70,
+            );
+            if (value === null || value === undefined || value <= 0) return;
+            const price = Number(value.toFixed(s.broker.specs.precision));
+            if (owner === "draft") onOrderLevel?.(role, price);
+            else if (owner === "pending")
+              onPendingEdit?.(id, { [role]: price });
+            else
+              onProtect(
+                id,
+                role === "sl" ? price : sl,
+                role === "tp" ? price : tp,
+              );
+          }}
+        >
+          <title>
+            {"Dra " +
+              role.toUpperCase() +
+              " fra inngangen til ønsket pris. Enter legger til et nærliggende nivå. Escape avbryter."}
+          </title>
+          <rect
+            x={xx}
+            y={yy - 13}
+            width={52}
+            height={26}
+            rx={5}
+            fill={palette.panel}
+            stroke={color}
+            strokeWidth={1.5}
+          />
+          <text
+            x={xx + 26}
+            y={yy + 4}
+            textAnchor="middle"
+            fill={color}
+            fontSize={11}
+            fontWeight={600}
+            style={{ pointerEvents: "none" }}
+          >
+            + {role.toUpperCase()}
+          </text>
+        </g>
+      );
+    });
+  };
   return (
     <div
       className={"chart " + (secondary ? "secondary" : "")}
@@ -2062,8 +2189,20 @@ export const Chart = forwardRef<
             s.broker.positions.flatMap((p) =>
               [
                 { kind: "entry", price: p.entry },
-                { kind: "sl", price: p.sl },
-                { kind: "tp", price: p.tp },
+                {
+                  kind: "sl",
+                  price:
+                    protect?.id === p.id && protect.kind === "sl"
+                      ? protect.price
+                      : p.sl,
+                },
+                {
+                  kind: "tp",
+                  price:
+                    protect?.id === p.id && protect.kind === "tp"
+                      ? protect.price
+                      : p.tp,
+                },
               ]
                 .filter((l) => l.price !== undefined)
                 .map((l) => {
@@ -2136,6 +2275,42 @@ export const Chart = forwardRef<
                     </g>
                   );
                 }),
+            )}
+          {!secondary &&
+            appearance.graphOrders &&
+            orderDraft &&
+            protectionHandles(
+              "draft",
+              "draft",
+              visibleDraft!.entry,
+              visibleDraft!.side,
+              orderDraft.sl,
+              orderDraft.tp,
+              Math.max(30, dims.w - 275),
+            )}
+          {!secondary &&
+            s.broker.pending.map((p, index) =>
+              protectionHandles(
+                "pending",
+                p.id,
+                p.price!,
+                p.side,
+                p.sl,
+                p.tp,
+                Math.max(8, dims.w - 280 - (index % 4) * 210),
+              ),
+            )}
+          {!secondary &&
+            s.broker.positions.map((p) =>
+              protectionHandles(
+                "position",
+                p.id,
+                p.entry,
+                p.side,
+                p.sl,
+                p.tp,
+                dims.w - 330,
+              ),
             )}
         </g>
         {snapPoint && (

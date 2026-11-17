@@ -1,0 +1,436 @@
+.modal.wide:has(.visual-course) {
+  width: min(1380px, calc(100vw - 32px));
+}
+.modal:has(.visual-course) > header {
+  padding: 14px 22px;
+}
+.modal:has(.visual-course) > header small {
+  display: none;
+}
+.modal:has(.visual-course) h2 {
+  font-family: inherit;
+  font-size: 18px;
+  margin: 0;
+}
+.modal:has(.visual-course) .modal-body {
+  padding: 16px 20px;
+}
+.learning-route {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 18px;
+}
+.learning-route button {
+  padding: 8px 13px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.learning-route button[aria-pressed="true"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel-solid));
+  border-color: var(--accent);
+}
+.visual-course {
+  color: var(--text);
+  min-width: 0;
+}
+.visual-course button {
+  display: inline-flex;
+  gap: 7px;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+}
+.visual-course button:focus-visible,
+.visual-chart [role="button"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.visual-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.visual-heading h3 {
+  font-size: 27px;
+  font-weight: 550;
+  letter-spacing: -0.5px;
+  margin: 6px 0;
+}
+.visual-heading p {
+  color: var(--muted);
+  margin: 0;
+  font-size: 12px;
+}
+.visual-progress {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: right;
+}
+.visual-progress b {
+  display: block;
+  color: var(--text);
+  font-size: 24px;
+  margin-bottom: 3px;
+}
+.visual-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 20px 0 14px;
+}
+.visual-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.visual-mode button,
+.visual-chart-toolbar button {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 8px 11px;
+}
+.visual-mode button[aria-pressed="true"],
+.visual-chart-toolbar button[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 9%, transparent);
+}
+.visual-toolbar label {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 11px;
+}
+.visual-toolbar select {
+  max-width: 260px;
+  padding: 7px;
+}
+.visual-steps {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 5px;
+  margin-bottom: 16px;
+}
+.visual-steps button {
+  flex-direction: column;
+  gap: 7px;
+  font-size: 10px;
+  padding: 10px 4px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  line-height: 1.4;
+}
+.visual-steps button > span {
+  border-radius: 50%;
+  border: 1px solid var(--line);
+  width: 23px;
+  height: 23px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.visual-steps button[aria-current="step"] {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.visual-steps button[aria-current="step"] > span {
+  background: var(--accent);
+  color: var(--accent-ink, #10110e);
+  border-color: var(--accent);
+}
+.visual-workbench {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 18px;
+  align-items: start;
+}
+.visual-canvas-area {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  overflow: hidden;
+  position: sticky;
+  top: 0;
+}
+.visual-chart-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px;
+  border-bottom: 1px solid var(--line);
+}
+.visual-chart-toolbar > div {
+  display: flex;
+  gap: 3px;
+}
+.visual-chart-toolbar button {
+  padding: 5px 8px;
+}
+.visual-chart-toolbar > span {
+  color: var(--muted);
+  font-size: 10px;
+}
+.visual-chart {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2;
+  touch-action: none;
+  cursor: crosshair;
+  user-select: none;
+}
+.visual-chart text {
+  font-family: inherit;
+}
+.visual-chart-caption {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 10px 12px;
+  font-size: 10px;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+}
+.visual-task {
+  min-width: 0;
+}
+.visual-kicker {
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.09em;
+}
+.visual-task h4 {
+  margin: 8px 0 10px;
+  font-size: 20px;
+  font-weight: 550;
+}
+.visual-question {
+  font-size: 13px;
+  line-height: 1.65;
+  margin: 0 0 13px;
+}
+.visual-explanation {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--accent) 7%, transparent);
+  margin-bottom: 14px;
+}
+.visual-explanation svg {
+  color: var(--accent);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.visual-explanation p,
+.visual-tip {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--muted);
+}
+.visual-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.visual-controls > button {
+  justify-content: flex-start;
+  text-align: left;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  line-height: 1.5;
+}
+.visual-controls > button[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.visual-controls label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+}
+.visual-controls input {
+  width: 160px;
+  padding: 7px;
+}
+.visual-controls .visual-tip {
+  margin: 5px 0;
+}
+.visual-submit {
+  width: 100%;
+  margin-top: 14px;
+  min-height: 39px;
+}
+.visual-feedback {
+  margin: 14px 0;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.visual-feedback b {
+  font-size: 12px;
+}
+.visual-feedback p {
+  font-size: 11px;
+  line-height: 1.6;
+}
+.visual-feedback .met {
+  color: #70bfae;
+}
+.visual-feedback .revisit {
+  color: #e8af70;
+}
+.visual-feedback button {
+  padding: 7px 0;
+  color: var(--accent);
+}
+.visual-source {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 10px;
+}
+.visual-source summary {
+  cursor: pointer;
+}
+.visual-source p {
+  line-height: 1.6;
+}
+.visual-source button {
+  font-size: 10px;
+  text-align: left;
+  padding: 6px 0;
+  color: var(--accent);
+  justify-content: flex-start;
+}
+.visual-footer {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  justify-content: space-between;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+.visual-footer p {
+  max-width: 510px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.6;
+  text-align: center;
+}
+.visual-footer button {
+  white-space: nowrap;
+}
+.visual-history {
+  padding-top: 14px;
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+}
+.visual-history summary {
+  cursor: pointer;
+}
+.visual-history > div {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+.visual-history p {
+  font-size: 10px;
+}
+.visual-error {
+  color: #ef8b8b;
+  font-size: 12px;
+}
+.visual-empty,
+.visual-no-data {
+  padding: 40px;
+  color: var(--muted);
+  line-height: 1.7;
+}
+@media (max-width: 1000px) {
+  .visual-steps {
+    grid-template-columns: repeat(4, 1fr);
+  }
+  .visual-workbench {
+    grid-template-columns: minmax(0, 1fr) 260px;
+    gap: 12px;
+  }
+  .visual-chart-toolbar > span {
+    max-width: 145px;
+    text-align: right;
+  }
+}
+@media (max-width: 720px) {
+  .visual-workbench {
+    grid-template-columns: 1fr;
+  }
+  .visual-canvas-area {
+    position: static;
+  }
+  .visual-heading h3 {
+    font-size: 23px;
+  }
+  .visual-heading {
+    align-items: start;
+  }
+  .visual-progress {
+    max-width: 95px;
+  }
+  .visual-chart-caption {
+    flex-direction: column;
+  }
+  .visual-footer p {
+    display: none;
+  }
+}
+
+.modal .visual-heading h3 {
+  font-size: 24px;
+  line-height: 1.2;
+}
+@media (max-height: 850px) {
+  .modal:has(.visual-course) .modal-body {
+    padding-top: 10px;
+  }
+  .learning-route {
+    margin-bottom: 12px;
+  }
+  .visual-heading .learning-eyebrow {
+    display: none;
+  }
+  .visual-toolbar {
+    margin-top: 12px;
+  }
+  .visual-steps button {
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+}
+
+.themed .modal .visual-heading h3 {
+  font-size: 24px;
+  line-height: 1.2;
+}
+.visual-source label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 7px;
+}
+.visual-source input {
+  width: 145px;
+}

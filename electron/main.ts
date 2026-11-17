@@ -355,6 +355,8 @@ else {
   });
 }
 const allowed = new Set([
+  "visual.open",
+  "visual.action",
   "instrument",
   "challenge.end",
   "challenge.start",
