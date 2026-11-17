@@ -1,4 +1,17 @@
 import {
+  restoreVisualBackup,
+  visualAnswerSchema,
+} from "../src/core/visual-backup";
+import {
+  beginVisual,
+  checkVisual,
+  visualCases,
+  visualView,
+  VISUAL_STEPS,
+  type VisualAnswer,
+  type VisualCourse,
+} from "../src/core/visual-course";
+import {
   challengeSnapshot,
   challengeFallback,
   challengeFeedbackSchema,
@@ -472,6 +485,89 @@ async function dispatch(c: Command): Promise<any> {
   switch (c.type) {
     case "state":
       return state();
+    case "visual.open": {
+      if (!s) throw Error("Åpne en økt først.");
+      playing = false;
+      const key = "rrVisual:" + s.id + ":" + s.dataset;
+      let course = store.meta<VisualCourse | null>(key, null);
+      if (!course || c.fresh === true) {
+        course = beginVisual({
+          version: "rr-visual-v1",
+          id: randomUUID(),
+          sessionId: s.id,
+          dataset: s.dataset,
+          cutoff: s.tick.t,
+          specs: structuredClone(s.broker.specs),
+          frames: {
+            "4H": replay.bars("4H").slice(-160),
+            "15m": replay.bars("15m").slice(-2400),
+            "1m": replay.bars("1m").slice(-4000),
+          },
+        });
+        store.set(key, course);
+      }
+      if (
+        course.snapshot.sessionId !== s.id ||
+        course.snapshot.cutoff > s.tick.t
+      )
+        throw Error(
+          "Øvingen ligger foran dette replay-punktet. Åpne et nytt beslutningsgrunnlag.",
+        );
+      publish();
+      return visualView(course);
+    }
+    case "visual.action": {
+      if (!s) throw Error("Åpne en økt først.");
+      const key = "rrVisual:" + s.id + ":" + s.dataset,
+        course = store.meta<VisualCourse | null>(key, null);
+      if (
+        !course ||
+        course.snapshot.id !== c.snapshotId ||
+        course.snapshot.sessionId !== s.id ||
+        course.snapshot.cutoff > s.tick.t
+      )
+        throw Error(
+          "Øvingen er endret eller ligger foran replay-punktet. Åpne den på nytt.",
+        );
+      const action = z
+        .enum(["step", "mode", "case", "retry", "commit", "reveal"])
+        .parse(c.action);
+      if (action === "step") course.step = z.enum(VISUAL_STEPS).parse(c.value);
+      else if (action === "mode") course.guided = z.boolean().parse(c.value);
+      else if (action === "case") {
+        const time = z.number().int().positive().parse(c.value);
+        if (!visualCases(course.snapshot).some((x) => x.c1.time === time))
+          throw Error("Ukjent historisk eksempel.");
+        course.caseTime = time;
+      } else if (action === "commit") {
+        if (course.attempts.some((a) => a.id === course.activeId))
+          throw Error("Svaret er allerede låst. Velg Prøv igjen.");
+        const answer = visualAnswerSchema.parse(c.value) as VisualAnswer;
+        course.attempts.push({
+          id: course.activeId,
+          caseTime: course.caseTime,
+          step: course.step,
+          guided: course.guided,
+          at: Date.now(),
+          answer,
+          checks: checkVisual(course, answer),
+        });
+        course.attempts = course.attempts.slice(-200);
+      } else if (action === "reveal") {
+        const view = visualView(course);
+        if (course.step !== "review" || !view.last || !view.canReveal)
+          throw Error(
+            "Lås planen og svaret før du viser C3. C3 må finnes som ferdig historikk.",
+          );
+        if (!course.revealed.includes(course.caseTime))
+          course.revealed.push(course.caseTime);
+      }
+      if (["step", "mode", "case", "retry"].includes(action))
+        course.activeId = randomUUID();
+      store.set(key, course);
+      return visualView(course);
+    }
+
     case "feed.configure":
       telegramFeed.configure(c.value);
       return;
@@ -608,6 +704,10 @@ async function dispatch(c: Command): Promise<any> {
             .all(s.id),
           settings: { ...settings, enabled: false },
           rrProgress,
+          rrVisual: store.meta<VisualCourse | null>(
+            "rrVisual:" + s.id + ":" + s.dataset,
+            null,
+          ),
         };
         const json = JSON.stringify(payload);
         return { payload, sha256: sha(json) };
@@ -640,6 +740,9 @@ async function dispatch(c: Command): Promise<any> {
       const imported = structuredClone(input) as Session;
       imported.id = randomUUID();
       imported.name += " (importert)";
+      const importedVisual = data.payload.rrVisual
+        ? restoreVisualBackup(data.payload.rrVisual, input, imported.id)
+        : null;
       const imageMap = new Map<string, string>();
       for (const decision of data.payload.decisions ?? [])
         store.db
@@ -666,6 +769,11 @@ async function dispatch(c: Command): Promise<any> {
       ])
         if (p.screenshot) p.screenshot = imageMap.get(p.screenshot);
       recoverChallenge(imported);
+      if (importedVisual)
+        store.set(
+          "rrVisual:" + imported.id + ":" + imported.dataset,
+          importedVisual,
+        );
       replay.setSession(imported);
       if (importedProgress) {
         rrProgress = {
