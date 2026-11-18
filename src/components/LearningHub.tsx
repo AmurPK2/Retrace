@@ -1,3 +1,4 @@
+import { RRSourceCourse } from "./RRSourceCourse";
 import { VisualRRCourse } from "./VisualRRCourse";
 import { useEffect, useState } from "react";
 import type { AppState } from "../types";
@@ -392,17 +393,23 @@ function WrittenLearningHub({
 }
 
 export function LearningHub(props: Parameters<typeof WrittenLearningHub>[0]) {
-  const [route, setRoute] = useState<"visual" | "written">(
-    props.initial === "help" ? "written" : "visual",
+  const [route, setRoute] = useState<"source" | "visual" | "written">(
+    props.initial === "help" ? "written" : "source",
   );
   return (
     <div className="learning-shell">
       <nav className="learning-route" aria-label="Velg læringsvisning">
         <button
+          aria-pressed={route === "source"}
+          onClick={() => setRoute("source")}
+        >
+          RR fra originalkildene
+        </button>
+        <button
           aria-pressed={route === "visual"}
           onClick={() => setRoute("visual")}
         >
-          RR · se og gjør
+          Egen historikk · fri øving
         </button>
         <button
           aria-pressed={route === "written"}
@@ -411,7 +418,9 @@ export function LearningHub(props: Parameters<typeof WrittenLearningHub>[0]) {
           Tekst, videoer og tidligere kurs
         </button>
       </nav>
-      {route === "visual" ? (
+      {route === "source" ? (
+        <RRSourceCourse call={props.call} />
+      ) : route === "visual" ? (
         <VisualRRCourse state={props.state} call={props.call} />
       ) : (
         <WrittenLearningHub {...props} />

@@ -64,15 +64,15 @@ const LESSONS: Record<
   confirmation: {
     title: "Finn en bekreftelse",
     question:
-      "Øvingsregel: finn første ferdige 15m-close gjennom den markerte tidligere toppen/bunnen i C2-perioden. Trykk på candlen, eller velg Ingen.",
-    show: "Nivået er valgt fra åtte ferdige 15m-candles før C2. Vi kontrollerer en tydelig øvingsregel. RR-opptakene gir ikke én universell CISD-grense. Et signal før 4H-close kan ikke etterpå kalles en inngang etter 4H-close.",
+      "Denne automatiske øvingen er trukket tilbake. Åtte tidligere candles er ikke Jakes CISD-regel. Bruk fanen RR fra originalkildene.",
+    show: "Ingen oppdiktet CISD-grense vises. Se hans skille mellom nærmeste supply/demand, MSS og BOS i kildekurset.",
     source: "confirmation",
   },
   plan: {
     title: "Dra planen på chartet",
     question:
-      "Velg en hypotese og dra ENTRY, SL og TP. I denne øvingen skal SL ligge utenfor referanseparets ytterste wick. Du kan også velge Vent.",
-    show: "Entry er en plan, ikke en fylling. SL skal passe den valgte ugyldiggjøringen, TP trenger en begrunnelse. Her kontrolleres prisgeometri og én uttrykkelig stopregel. R:R vises før spread og kostnader.",
+      "Fri plan: velg en hypotese og dra ENTRY, SL og TP. Prisrekkefølgen kontrolleres. Dette godkjenner ikke en RR-inngang eller en modellspesifikk stop.",
+    show: "Entry er en plan, ikke en fylling. SL skal passe den valgte ugyldiggjøringen, TP trenger en begrunnelse. Her kontrolleres bare prisgeometri. Velg en dokumentert modell i kildekurset for stopbegrunnelsen. R:R vises før spread og kostnader.",
     source: "risk",
   },
   review: {
