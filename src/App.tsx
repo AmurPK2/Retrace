@@ -1090,7 +1090,7 @@ export default function App() {
               </button>
               <button
                 className="toolbar-button challenge-entry"
-                title="Én læringssti med ti trinn, guider og bevarte forsøk"
+                title="RR med visuelle kildeoppgaver, historisk øving, guider og bevarte forsøk"
                 onClick={() => {
                   setModal("challenge");
                   act({ type: "play", value: false });
