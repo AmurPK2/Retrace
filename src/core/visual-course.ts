@@ -199,20 +199,7 @@ export function visualConfirmation(course: VisualCourse) {
     : ["sweep-high", "break-down"].includes(pattern)
       ? "sell"
       : "wait";
-  const before = bars.filter((b) => b.time < c.c2.time).slice(-8);
-  if (!before.length || direction === "wait")
-    return { direction, level: null, first: null };
-  const level =
-    direction === "buy"
-      ? Math.max(...before.map((b) => b.high))
-      : Math.min(...before.map((b) => b.low));
-  const first =
-    bars.find(
-      (b) =>
-        b.time >= c.c2.time &&
-        (direction === "buy" ? b.close > level : b.close < level),
-    ) ?? null;
-  return { direction, level, first };
+  return { direction, level: null as number | null, first: null as Bar | null };
 }
 export function visualAnswerKey(course: VisualCourse): VisualAnswer {
   const c = visualCase(course),
@@ -339,15 +326,8 @@ export function checkVisual(
     case "confirmation":
       return [
         {
-          pass: answer.confirmation === key.confirmation,
-          text:
-            key.confirmation === "none"
-              ? "Ingen slik 15m-stenging er bekreftet i det låste grunnlaget. Vent er riktig observasjon."
-              : "Første 15m-stenging gjennom øvingsnivået: " +
-                new Date((Number(key.confirmation) + 900) * 1000)
-                  .toISOString()
-                  .slice(11, 16) +
-                " UTC. Dette er før C2s 4H-stenging; det kan ikke etterpå kalles en inngang etter 4H-bekreftelse. Øvingsnivået er ikke en universell RR/CISD-regel.",
+          pass: false,
+          text: "Den tidligere åtte-candle-oppgaven er trukket tilbake. Bruk RR fra originalkildene for hans CISD-forklaring. Ingen automatisk RR-fasit gis her.",
         },
       ];
     case "plan": {
@@ -370,14 +350,6 @@ export function checkVisual(
               ? answer.sl! < answer.entry! && answer.tp! > answer.entry!
               : answer.sl! > answer.entry! && answer.tp! < answer.entry!),
           text: "Kjøp krever SL < entry < TP. Salg krever TP < entry < SL. Geometri alene godkjenner ikke en trade.",
-        },
-        {
-          pass:
-            valid &&
-            (buy
-              ? answer.sl! < Math.min(c.c1.low, c.c2.low)
-              : answer.sl! > Math.max(c.c1.high, c.c2.high)),
-          text: "Denne øvingen bruker uttrykkelig SL utenfor referanseparets ytterste wick. C1-grensen alene kan ligge innenfor sweepen. Dette er én valgt stopregel, ikke alle RR-varianter.",
         },
       ];
     }

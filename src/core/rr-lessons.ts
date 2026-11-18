@@ -1,3 +1,4 @@
+import { RR_SOURCE_TASKS, rrSourceUrl } from "./rr-source-course";
 export const RR_COURSE_VERSION = "rr-study-20261113-v1";
 export const RR_LESSON_IDS = [
   "context",
@@ -188,6 +189,19 @@ export const DEFAULT_RR_PROGRESS: RRProgress = {
   completed: [],
 };
 export function lessonSource(lesson: unknown, index: unknown) {
+  if (
+    typeof lesson === "string" &&
+    lesson.startsWith("rr-source:") &&
+    typeof index === "number" &&
+    Number.isInteger(index) &&
+    index >= 0
+  ) {
+    const source = RR_SOURCE_TASKS.find((t) => t.id === lesson.slice(10))?.refs[
+      index
+    ];
+    if (!source) throw Error("Unknown RR source.");
+    return rrSourceUrl(source);
+  }
   if (lesson === "fvg" && index === 0)
     return "https://www.youtube.com/watch?v=Bkt8B3kLATQ";
   if (lesson === "po3" && index === 0)
