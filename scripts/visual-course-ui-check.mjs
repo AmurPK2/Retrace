@@ -60,6 +60,7 @@ const click = (role, name) => p.getByRole(role, { name, exact: true }).click();
 async function open() {
   await click("button", "Lær og øv");
   await p.locator(".learning-shell").waitFor();
+  await click("button", "Egen historikk · fri øving");
   await p.locator(".visual-course,.visual-empty").waitFor();
 }
 async function screenshot(label) {
@@ -95,7 +96,7 @@ try {
   await screenshot("guided");
   checks.push({
     label:
-      "Visual RR path opens by default with real historical candles and hidden C3",
+      "Historical free-practice path opens with real historical candles and hidden C3",
     pass: true,
   });
   await click("button", "Prøv selv");
@@ -232,17 +233,17 @@ try {
   assert.equal(Number(await inputEntry.inputValue()), entry);
   assert.equal(Number(await inputTP.inputValue()), tp);
   assert.notEqual(Number(await inputSL.inputValue()), sl);
-  // Deliberate old C1-boundary stop must fail the selected wick-extreme rule.
+  // Free plan only checks side geometry; no universal RR wick-extreme rule.
   await inputEntry.fill(String(v.reference.c2.close));
   await inputSL.fill(String(v.reference.c1.low));
   await inputTP.fill(String(v.reference.c2.close + 50));
   await click("button", "Lås og vis forklaringen");
   v = await call({ type: "visual.open" });
-  assert.equal(v.last.checks[1].pass, false);
+  assert.equal(v.last.checks.length, 1);
   await screenshot("plan-correction");
   checks.push({
     label:
-      "Dragging SL leaves entry and TP fixed; an inside-range stop is corrected against actual wick extreme",
+      "Dragging SL leaves entry and TP fixed; free plan imposes no universal RR stop",
     pass: true,
   });
   await click("button", "Prøv samme oppgave igjen");
