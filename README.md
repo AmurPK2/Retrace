@@ -1,5 +1,7 @@
 # RETRACE
 
+**0.6.0:** Lær og øv → RR fra originalkildene. Visual source-based RR/Jake tasks, including recording 14; see [source coverage and limits](docs/RR-SOURCE-COURSE.md). Original videos require internet; diagrams, exercises and saved progress work offline.
+
 <p align="center"><img src="assets/RETRACE.png" width="112" alt="RETRACE RT logo"></p>
 
 A Windows desktop app for practising on real historical gold, EURAUD and NAS100 CFD charts, reviewing your decisions with local AI, and learning one candle at a time.
@@ -26,6 +28,12 @@ Internet is needed for initial downloads. Replay and local AI can then work offl
 - **Draw and save.** Hold **Shift** while drawing a trend line or ray, or moving one endpoint, to lock to the nearest horizontal or vertical axis. Release Shift to draw freely. Click two points or drag; Enter also finishes a pending two-point line. Lines, rays, rectangles, position plans, indicators, notes and practice sessions persist locally. Continue restores the replay paused. Export a session backup from the session menu.
 
 This is a simulated replay workspace, with no broker order route. Balances, positions and Discord numbers are practice results. The local model can still make mistakes; its answer is not proof of a trading edge.
+
+## Interactive RR learning in 0.5.0
+
+**Lær og øv → RR · se og gjør** opens eight chart exercises. **Vis meg** highlights actual candles and levels; **Prøv selv** lets you click prices/candles and drag the plan before receiving factual feedback. The same frozen historical period is available on 4H, 15m and 1m. Lock a plan or Wait before revealing C3. Main replay, orders and drawings remain in place; visual attempts survive restart and session backup.
+
+The original written course and six offline guides are still available in the adjacent tab. These are RR building-block exercises with explicit rules, not a complete verified RR/CISD strategy or an AI accuracy certification. See [0.5.0 behavior and limits](docs/RELEASE-0.5.0.md).
 
 ## Clear chart and learning workflow in 0.4.0
 

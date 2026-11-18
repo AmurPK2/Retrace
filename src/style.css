@@ -4549,3 +4549,7 @@ td > span {
   background: color-mix(in srgb, var(--accent) 8%, var(--panel-solid));
   outline-color: var(--accent);
 }
+
+.protection-create-handle:focus { outline: none; }
+.protection-create-handle:focus-visible rect { stroke-width: 3; }
+.protection-create-handle:hover rect { fill: var(--surface-hover, #25251f); }

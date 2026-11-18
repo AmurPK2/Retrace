@@ -1,3 +1,5 @@
+import { RRSourceCourse } from "./RRSourceCourse";
+import { VisualRRCourse } from "./VisualRRCourse";
 import { useEffect, useState } from "react";
 import type { AppState } from "../types";
 import {
@@ -11,7 +13,7 @@ import { ChallengePanel } from "./ChallengePanel";
 import { VideoGuides } from "./VideoGuides";
 import { WorkspaceHelp } from "./WorkspaceHelp";
 
-export function LearningHub({
+function WrittenLearningHub({
   state,
   initial,
   call,
@@ -386,6 +388,43 @@ export function LearningHub({
       </button>
       {help && <WorkspaceHelp />}
       {issue && <p role="alert">{issue}</p>}
+    </div>
+  );
+}
+
+export function LearningHub(props: Parameters<typeof WrittenLearningHub>[0]) {
+  const [route, setRoute] = useState<"source" | "visual" | "written">(
+    props.initial === "help" ? "written" : "source",
+  );
+  return (
+    <div className="learning-shell">
+      <nav className="learning-route" aria-label="Velg læringsvisning">
+        <button
+          aria-pressed={route === "source"}
+          onClick={() => setRoute("source")}
+        >
+          RR fra originalkildene
+        </button>
+        <button
+          aria-pressed={route === "visual"}
+          onClick={() => setRoute("visual")}
+        >
+          Egen historikk · fri øving
+        </button>
+        <button
+          aria-pressed={route === "written"}
+          onClick={() => setRoute("written")}
+        >
+          Tekst, videoer og tidligere kurs
+        </button>
+      </nav>
+      {route === "source" ? (
+        <RRSourceCourse call={props.call} />
+      ) : route === "visual" ? (
+        <VisualRRCourse state={props.state} call={props.call} />
+      ) : (
+        <WrittenLearningHub {...props} />
+      )}
     </div>
   );
 }

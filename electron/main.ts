@@ -355,6 +355,10 @@ else {
   });
 }
 const allowed = new Set([
+  "rrcourse.open",
+  "rrcourse.action",
+  "visual.open",
+  "visual.action",
   "instrument",
   "challenge.end",
   "challenge.start",
