@@ -1,4 +1,13 @@
 import {
+  RR_SOURCE_VERSION,
+  RR_SOURCE_TASKS,
+  freshRRSource,
+  restoreRRSource,
+  mergeRRSource,
+  rrAnswerSchema,
+  type RRSourceProgress,
+} from "../src/core/rr-source-course";
+import {
   restoreVisualBackup,
   visualAnswerSchema,
 } from "../src/core/visual-backup";
@@ -485,6 +494,44 @@ async function dispatch(c: Command): Promise<any> {
   switch (c.type) {
     case "state":
       return state();
+    case "rrcourse.open": {
+      return restoreRRSource(
+        store.meta("rrSourceCourse:" + RR_SOURCE_VERSION, freshRRSource()),
+      );
+    }
+    case "rrcourse.action": {
+      const key = "rrSourceCourse:" + RR_SOURCE_VERSION;
+      const p = restoreRRSource(store.meta(key, freshRRSource()));
+      const action = z
+        .enum(["select", "mode", "retry", "commit"])
+        .parse(c.action);
+      if (action === "select") {
+        const id = z.string().max(70).parse(c.value);
+        if (!RR_SOURCE_TASKS.some((t) => t.id === id))
+          throw Error("Ukjent RR-kildeoppgave.");
+        p.selected = id;
+      } else if (action === "mode") p.guided = z.boolean().parse(c.value);
+      else if (action === "commit") {
+        if (p.activeAttempt)
+          throw Error(
+            "Svaret er allerede låst. Prøv igjen for et nytt forsøk.",
+          );
+        const answer = rrAnswerSchema.parse(c.value),
+          id = randomUUID();
+        p.attempts.push({
+          id,
+          taskId: p.selected,
+          at: Date.now(),
+          guided: p.guided,
+          answer,
+        });
+        p.attempts = p.attempts.slice(-500);
+        p.activeAttempt = id;
+      }
+      if (action !== "commit") p.activeAttempt = null;
+      store.set(key, p);
+      return p;
+    }
     case "visual.open": {
       if (!s) throw Error("Åpne en økt først.");
       playing = false;
@@ -704,6 +751,10 @@ async function dispatch(c: Command): Promise<any> {
             .all(s.id),
           settings: { ...settings, enabled: false },
           rrProgress,
+          rrSourceCourse: store.meta<RRSourceProgress | null>(
+            "rrSourceCourse:" + RR_SOURCE_VERSION,
+            null,
+          ),
           rrVisual: store.meta<VisualCourse | null>(
             "rrVisual:" + s.id + ":" + s.dataset,
             null,
@@ -731,6 +782,9 @@ async function dispatch(c: Command): Promise<any> {
       )
         throw Error("The backup is missing session data.");
       if (input.study) rrStudySchema.parse(input.study);
+      const importedSourceCourse = data.payload.rrSourceCourse
+        ? restoreRRSource(data.payload.rrSourceCourse)
+        : null;
       const importedProgress = data.payload.rrProgress
         ? rrProgressSchema.parse(data.payload.rrProgress)
         : null;
@@ -774,6 +828,16 @@ async function dispatch(c: Command): Promise<any> {
           "rrVisual:" + imported.id + ":" + imported.dataset,
           importedVisual,
         );
+      if (importedSourceCourse) {
+        const key = "rrSourceCourse:" + RR_SOURCE_VERSION;
+        store.set(
+          key,
+          mergeRRSource(
+            restoreRRSource(store.meta(key, freshRRSource())),
+            importedSourceCourse,
+          ),
+        );
+      }
       replay.setSession(imported);
       if (importedProgress) {
         rrProgress = {
