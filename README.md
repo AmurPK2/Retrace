@@ -1,5 +1,7 @@
 # RETRACE
 
+**0.6.0:** Lær og øv → RR fra originalkildene. Visual source-based RR/Jake tasks, including recording 14; see [source coverage and limits](docs/RR-SOURCE-COURSE.md). Original videos require internet; diagrams, exercises and saved progress work offline.
+
 <p align="center"><img src="assets/RETRACE.png" width="112" alt="RETRACE RT logo"></p>
 
 A Windows desktop app for practising on real historical gold, EURAUD and NAS100 CFD charts, reviewing your decisions with local AI, and learning one candle at a time.
