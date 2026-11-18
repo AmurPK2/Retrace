@@ -128,7 +128,7 @@ test("FVG uses three consecutive closed wick ranges and keeps touch/overlap sepa
   c.snapshot.frames["15m"][2].gapBefore = { from: t, to: t + 900 };
   assert.equal(visualGap(c), null);
 });
-test("confirmation checks completed close, not a wick, and identifies the first eligible close", () => {
+test("retired confirmation surrogate gives no invented level or passing RR verdict", () => {
   const c = beginVisual(snapshot());
   c.step = "confirmation";
   const i = c.snapshot.frames["4H"].findIndex((b) => b.time === c.caseTime);
@@ -140,11 +140,12 @@ test("confirmation checks completed close, not a wick, and identifies the first 
     bar(t, 100, 120, 95, 105),
     bar(t + 900, 105, 120, 100, 115),
   ];
-  assert.equal(visualConfirmation(c).first?.time, t + 900);
+  assert.equal(visualConfirmation(c).first, null);
+  assert.equal(visualConfirmation(c).level, null);
   assert.equal(checkVisual(c, { confirmation: t })[0].pass, false);
-  assert.equal(checkVisual(c, { confirmation: t + 900 })[0].pass, true);
+  assert.equal(checkVisual(c, { confirmation: t + 900 })[0].pass, false);
 });
-test("plan distinguishes old C1 boundary from the actual sweep extreme and does not reward profit", () => {
+test("free plan checks price geometry without imposing a universal RR stop", () => {
   const c = beginVisual(snapshot());
   c.step = "plan";
   const i = c.snapshot.frames["4H"].findIndex((b) => b.time === c.caseTime);
@@ -157,7 +158,7 @@ test("plan distinguishes old C1 boundary from the actual sweep extreme and does 
     tp: 120,
   });
   assert.equal(tight[0].pass, true);
-  assert.equal(tight[1].pass, false);
+  assert.equal(tight.length, 1);
   assert.ok(
     checkVisual(c, { decision: "buy", entry: 100, sl: 84, tp: 120 }).every(
       (x) => x.pass,
