@@ -70,6 +70,7 @@ import {
   chartTimeline,
   chartBreaks,
   initialChartRange,
+  captureChartRange,
   logicalAtTime,
   timeAtLogical,
   axisLabel,
@@ -80,6 +81,7 @@ export type ChartHandle = {
   focusTrade: (id: string) => boolean;
   focusStudy: () => void;
   capture: () => Promise<string>;
+  viewport: () => ChartRange | undefined;
   visibleWindow: () => { from: number; to: number } | undefined;
   cursor: () => number;
   current: () => void;
@@ -606,35 +608,28 @@ export const Chart = forwardRef<
     const saved = secondary ? s.layout.secondRange : s.layout.range;
     c.priceScale("right").applyOptions({ autoScale: true });
     c.timeScale().setVisibleLogicalRange(
-      initialChartRange(timesRef.current, FRAMES[timeframe], saved) as any,
+      initialChartRange(
+        timesRef.current,
+        FRAMES[timeframe],
+        saved,
+        timeframe,
+      ) as any,
     );
     if (!saved) reserveSideSpace();
     let timer: ReturnType<typeof setTimeout>;
     const changed = (range: any) => {
       if (!range) return;
       clearTimeout(timer);
-      timer = setTimeout(
-        () =>
-          rangeCallback.current({
-            from: Number(range.from),
-            to: Number(range.to),
-            version: 3,
-            anchor: timesRef.current[0],
-            fromTime: timeAtLogical(
-              timesRef.current,
-              Number(range.from),
-              FRAMES[timeframe],
-            ),
-            toTime: timeAtLogical(
-              timesRef.current,
-              Number(range.to),
-              FRAMES[timeframe],
-            ),
-          }),
-        250,
+      const snapshot = captureChartRange(
+        timesRef.current,
+        FRAMES[timeframe],
+        timeframe,
+        { from: Number(range.from), to: Number(range.to) },
       );
+      timer = setTimeout(() => rangeCallback.current(snapshot), 250);
     };
     c.timeScale().subscribeVisibleLogicalRangeChange(changed);
+    changed(c.timeScale().getVisibleLogicalRange());
     return () => {
       clearTimeout(timer);
       c.timeScale().unsubscribeVisibleLogicalRangeChange(changed);
@@ -646,6 +641,15 @@ export const Chart = forwardRef<
     previousSideSpace.current = sideSpace;
   }, [sideSpace]);
   useImperativeHandle(ref, () => ({
+    viewport: () => {
+      const range = chart.current?.timeScale().getVisibleLogicalRange();
+      return range
+        ? captureChartRange(timesRef.current, FRAMES[timeframe], timeframe, {
+            from: Number(range.from),
+            to: Number(range.to),
+          })
+        : undefined;
+    },
     focusTrade: (id) => {
       const events = tradeMarkers(s).arrows.filter((m) => m.tradeId === id);
       if (!events.length || !chart.current || !times.length) return false;
