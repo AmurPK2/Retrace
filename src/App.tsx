@@ -1,3 +1,4 @@
+import { selectTimeframeRange } from "./core/chart-view";
 import { ChallengePanel } from "./components/ChallengePanel";
 import { CHALLENGES } from "./core/challenges";
 import { FibEditor } from "./components/FibEditor";
@@ -300,6 +301,7 @@ export default function App() {
   );
   const look = state?.appearance ?? DEFAULT_APPEARANCE;
   const chart = useRef<ChartHandle>(null);
+  const secondChart = useRef<ChartHandle>(null);
   const [draft, setDraft] = useState(""),
     [thesis, setThesis] = useState(""),
     [tags, setTags] = useState(""),
@@ -487,25 +489,26 @@ export default function App() {
     if (!session) return;
     if (patch.timeframe) setStudyPicking(false);
     const next = { ...session.layout, ...patch };
-    // Logical bar indexes belong to one timeframe. Reusing them after a
-    // timeframe change can put nearly the entire chart in future whitespace.
     if (patch.timeframe && patch.timeframe !== session.layout.timeframe) {
-      const visible = chart.current?.visibleWindow();
-      if (visible)
-        next.range = {
-          from: 0,
-          to: 1,
-          version: 3,
-          fromTime: visible.from,
-          toTime: visible.to,
-        };
+      const view = selectTimeframeRange(
+        session.layout.timeframe,
+        patch.timeframe,
+        chart.current?.viewport() ?? session.layout.range,
+        session.layout.ranges,
+      );
+      next.range = view.range;
+      next.ranges = view.ranges;
     }
-    if (
-      patch.second &&
-      patch.second !== session.layout.second &&
-      next.secondRange?.version !== 3
-    )
-      delete next.secondRange;
+    if (patch.second && patch.second !== session.layout.second) {
+      const view = selectTimeframeRange(
+        session.layout.second,
+        patch.second,
+        secondChart.current?.viewport() ?? session.layout.secondRange,
+        session.layout.secondRanges,
+      );
+      next.secondRange = view.range;
+      next.secondRanges = view.ranges;
+    }
     act({ type: "ui", value: { layout: next } });
   };
   const [tradeToLocate, setTradeToLocate] = useState<string | null>(null);
@@ -1445,6 +1448,7 @@ export default function App() {
                       ))}
                     </select>
                     <Chart
+                      ref={secondChart}
                       bars={state.secondBars}
                       appearance={look}
                       levels={state.levels}

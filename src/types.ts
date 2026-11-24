@@ -16,6 +16,8 @@ export type Tick = {
   av?: number;
 };
 export type ChartRange = {
+  timeframe?: TF;
+  rightOffset?: number;
   from: number;
   to: number;
   version?: 2 | 3;
@@ -253,6 +255,8 @@ export type Session = {
     timezone: string;
     range?: ChartRange;
     secondRange?: ChartRange;
+    ranges?: Partial<Record<TF, ChartRange>>;
+    secondRanges?: Partial<Record<TF, ChartRange>>;
   };
   chat: Message[];
   draft: string;
