@@ -461,6 +461,20 @@ async function stopImport() {
   });
 }
 const number = z.number().finite();
+const timeframeSchema = z.enum(["1m", "5m", "15m", "30m", "1H", "4H", "1D"]);
+const chartRangeSchema = z
+  .object({
+    from: number,
+    to: number,
+    version: z.union([z.literal(2), z.literal(3)]).optional(),
+    timeframe: timeframeSchema.optional(),
+    rightOffset: number.optional(),
+    anchor: number.optional(),
+    fromTime: number.optional(),
+    toTime: number.optional(),
+  })
+  .refine((range) => range.to > range.from, "Invalid chart viewport.");
+const chartRangesSchema = z.partialRecord(timeframeSchema, chartRangeSchema);
 const orderSchema = z.object({
   side: z.enum(["buy", "sell"]),
   kind: z.enum(["market", "limit", "stop"]),
@@ -1109,6 +1123,8 @@ async function dispatch(c: Command): Promise<any> {
       s.layout = { ...s.layout, ...studyContextLayout(preset) };
       delete s.layout.range;
       delete s.layout.secondRange;
+      delete s.layout.ranges;
+      delete s.layout.secondRanges;
       save();
       publish();
       return;
@@ -1527,21 +1543,23 @@ async function dispatch(c: Command): Promise<any> {
       publish();
       return;
     case "viewport":
-      if (!s) return;
+      if (!s || (c.sessionId !== undefined && c.sessionId !== s.id)) return;
       {
-        const range = z
-          .object({
-            from: number,
-            to: number,
-            version: z.union([z.literal(2), z.literal(3)]).optional(),
-            anchor: number.optional(),
-            fromTime: number.optional(),
-            toTime: number.optional(),
-          })
-          .parse(c.value);
-        if (range.to <= range.from) throw Error("Invalid chart viewport.");
-        if (c.secondary) s.layout.secondRange = range;
-        else s.layout.range = range;
+        const range = chartRangeSchema.parse(c.value);
+        const timeframe = c.secondary ? s.layout.second : s.layout.timeframe;
+        // A debounced event from the departing frame must never overwrite the
+        // new frame's view, even during rapid switches or history backfill.
+        if (range.timeframe && range.timeframe !== timeframe) return;
+        if (c.secondary) {
+          s.layout.secondRange = range;
+          s.layout.secondRanges = {
+            ...s.layout.secondRanges,
+            [timeframe]: range,
+          };
+        } else {
+          s.layout.range = range;
+          s.layout.ranges = { ...s.layout.ranges, [timeframe]: range };
+        }
         save();
       }
       return;
@@ -1671,31 +1689,22 @@ async function dispatch(c: Command): Promise<any> {
                 right: number.min(240).max(500),
                 blind: z.boolean(),
                 timezone: z.string().max(100),
-                range: z
-                  .object({
-                    from: number,
-                    to: number,
-                    version: z.union([z.literal(2), z.literal(3)]).optional(),
-                    anchor: number.optional(),
-                    fromTime: number.optional(),
-                    toTime: number.optional(),
-                  })
-                  .optional(),
-                secondRange: z
-                  .object({
-                    from: number,
-                    to: number,
-                    version: z.union([z.literal(2), z.literal(3)]).optional(),
-                    anchor: number.optional(),
-                    fromTime: number.optional(),
-                    toTime: number.optional(),
-                  })
-                  .optional(),
+                range: chartRangeSchema.optional(),
+                secondRange: chartRangeSchema.optional(),
+                ranges: chartRangesSchema.optional(),
+                secondRanges: chartRangesSchema.optional(),
               })
               .optional(),
             checklist: z.record(z.string(), z.boolean()).optional(),
           })
           .parse(c.value);
+        if (value.layout) {
+          value.layout.ranges = { ...s.layout.ranges, ...value.layout.ranges };
+          value.layout.secondRanges = {
+            ...s.layout.secondRanges,
+            ...value.layout.secondRanges,
+          };
+        }
         Object.assign(s, value);
         save();
         publish();
