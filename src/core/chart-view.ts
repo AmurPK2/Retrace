@@ -44,11 +44,99 @@ export function logicalAtTime(times: number[], time: number, step: number) {
   if (times[lo] === time) return lo;
   return lo - 1 + (time - times[lo - 1]) / (times[lo] - times[lo - 1]);
 }
+// Capture the candle count as well as timestamps. A wall-clock span must not
+// become thousands of compressed candles when selecting a lower timeframe.
+export function captureChartRange(
+  times: number[],
+  step: number,
+  timeframe: TF,
+  range: { from: number; to: number },
+): ChartRange {
+  const last = times.length - 1;
+  return {
+    ...range,
+    version: 3,
+    timeframe,
+    anchor: times[0],
+    fromTime: timeAtLogical(times, range.from, step),
+    toTime: timeAtLogical(times, range.to, step),
+    ...(range.from <= last && range.to >= last
+      ? { rightOffset: range.to - last }
+      : {}),
+  };
+}
+
+export function selectTimeframeRange(
+  current: TF,
+  next: TF,
+  visible: ChartRange | undefined,
+  saved: Partial<Record<TF, ChartRange>> = {},
+) {
+  const ranges = { ...saved };
+  if (visible) ranges[current] = { ...visible, timeframe: current };
+  const cached = ranges[next];
+  const source = ranges[current];
+  if (cached || !source) return { ranges, range: cached };
+  const width = Math.max(4, source.to - source.from);
+  if (Number.isFinite(source.fromTime) && Number.isFinite(source.toTime)) {
+    // Give history loading a target-frame estimate, rather than requesting
+    // the entire higher-timeframe span before the new chart can initialise.
+    const center = (source.fromTime! + source.toTime!) / 2;
+    const replay = source.toTime! - (source.rightOffset ?? 0) * FRAMES[current];
+    return {
+      ranges,
+      range: {
+        ...source,
+        fromTime:
+          source.rightOffset === undefined
+            ? center - (width / 2) * FRAMES[next]
+            : replay + (source.rightOffset - width) * FRAMES[next],
+        toTime:
+          source.rightOffset === undefined
+            ? center + (width / 2) * FRAMES[next]
+            : replay + source.rightOffset * FRAMES[next],
+      },
+    };
+  }
+  return { ranges, range: source };
+}
+
 export function initialChartRange(
   times: number[],
   step: number,
   saved?: ChartRange,
+  timeframe?: TF,
 ): ChartRange {
+  if (
+    saved?.version === 3 &&
+    saved.timeframe &&
+    timeframe &&
+    Number.isFinite(saved.from) &&
+    Number.isFinite(saved.to) &&
+    saved.to > saved.from
+  ) {
+    const width = Math.max(4, saved.to - saved.from);
+    // Views that included the replay candle continue following it, including
+    // when returning to a cached frame after the replay has advanced.
+    if (Number.isFinite(saved.rightOffset)) {
+      const to = Math.max(0, times.length - 1) + saved.rightOffset!;
+      return { from: to - width, to };
+    }
+    if (
+      saved.timeframe !== timeframe &&
+      Number.isFinite(saved.fromTime) &&
+      Number.isFinite(saved.toTime)
+    ) {
+      const center = Math.max(
+        0,
+        Math.min(
+          times.length - 1,
+          logicalAtTime(times, (saved.fromTime! + saved.toTime!) / 2, step),
+        ),
+      );
+      return { from: center - width / 2, to: center + width / 2 };
+    }
+  }
   if (
     saved?.version === 3 &&
     Number.isFinite(saved.fromTime) &&
@@ -56,6 +144,18 @@ export function initialChartRange(
   ) {
     const from = logicalAtTime(times, saved.fromTime!, step),
       to = logicalAtTime(times, saved.toTime!, step);
+    // Pre-fix saves have no timeframe identity. Repair excessively compressed
+    // legacy views once; explicitly zoomed new views are never capped.
+    if (
+      timeframe &&
+      !saved.timeframe &&
+      Math.max(saved.to - saved.from, to - from) > 600
+    ) {
+      const last = Math.max(0, times.length - 1);
+      if (from <= last && to >= last) return { from: last - 139, to: last + 8 };
+      const center = Math.max(0, Math.min(last, (from + to) / 2));
+      return { from: center - 73.5, to: center + 73.5 };
+    }
     if (to > from && from < times.length && to > 0)
       return to - from >= 4
         ? { ...saved, from, to }
