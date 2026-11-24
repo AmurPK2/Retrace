@@ -1,4 +1,4 @@
-RETRACE 0.4.0 for Windows
+RETRACE 0.6.1 for Windows
 
 Extract the entire ZIP, then open RETRACE.exe. First setup downloads genuine
 starter gold history and about 3.4 GB of pinned, hash-checked local AI files.
@@ -15,6 +15,9 @@ Norwegian guides, locked answers and retained attempts. Attempted, completed,
 facts checked and demonstrated understanding are separate. Revealing a candle
 or winning a trade does not earn mastery. Local AI feedback is experimental. Mer explains extra tools. Tegninger manages saved drawings.
 4H-candle uses the main chart price scale; width is adjustable separately.
+Timeframe changes keep candles readable and remember each frame's zoom.
+Drawings keep their actual times/prices, so higher-frame zones cover more
+candles on lower frames. Main and second charts remember separate views.
 
 XAUUSD, EURAUD and NAS100 CFD have separate feeds/specifications. EURAUD uses
 an AUD practice account. NQ has been removed from instrument choices. AI answers can still be wrong; computed
