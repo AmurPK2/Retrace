@@ -1433,7 +1433,9 @@ export default function App() {
                   onProtect={(id, sl, tp) =>
                     act({ type: "position.edit", id, sl, tp })
                   }
-                  onRange={(value) => act({ type: "viewport", value })}
+                  onRange={(value) =>
+                    act({ type: "viewport", value, sessionId: session.id })
+                  }
                 />
                 {session.layout.dual && (
                   <div className="second-container">
@@ -1460,7 +1462,12 @@ export default function App() {
                       onDraw={() => {}}
                       onProtect={() => {}}
                       onRange={(value) =>
-                        act({ type: "viewport", value, secondary: true })
+                        act({
+                          type: "viewport",
+                          value,
+                          secondary: true,
+                          sessionId: session.id,
+                        })
                       }
                       secondary
                     />
