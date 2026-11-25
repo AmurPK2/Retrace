@@ -1,6 +1,6 @@
 {
   "name": "retrace",
-  "version": "0.6.1",
+  "version": "0.6.2",
   "private": true,
   "description": "RETRACE · real-tick chart replay with automatic local AI",
   "main": "dist-electron/main.cjs",
