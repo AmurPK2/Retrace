@@ -72,6 +72,7 @@ import {
   initialChartRange,
   captureChartRange,
   logicalAtTime,
+  coordinateAtLogical,
   timeAtLogical,
   axisLabel,
   candleLabel,
@@ -750,7 +751,11 @@ export const Chart = forwardRef<
     const exact = c.timeScale().timeToCoordinate(time as UTCTimestamp);
     if (exact !== null) return exact;
     const logical = logicalAtTime(times, time, FRAMES[timeframe]);
-    return c.timeScale().logicalToCoordinate(logical as any) ?? 0;
+    return (
+      coordinateAtLogical(logical, (index) =>
+        c.timeScale().logicalToCoordinate(index as any),
+      ) ?? 0
+    );
   };
   const y = (price: number) => series.current?.priceToCoordinate(price) ?? -100;
   const point = (px: number, py: number, magnet = false, ctrl = false) => {
