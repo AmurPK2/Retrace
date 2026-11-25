@@ -1,4 +1,4 @@
-RETRACE 0.6.1 for Windows
+RETRACE 0.6.2 for Windows
 
 Extract the entire ZIP, then open RETRACE.exe. First setup downloads genuine
 starter gold history and about 3.4 GB of pinned, hash-checked local AI files.
