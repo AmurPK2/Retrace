@@ -44,6 +44,25 @@ export function logicalAtTime(times: number[], time: number, step: number) {
   if (times[lo] === time) return lo;
   return lo - 1 + (time - times[lo - 1]) / (times[lo] - times[lo - 1]);
 }
+// The installed chart library accepts integer logical indexes only. A drawing
+// anchor may sit between candles (or beyond the latest candle); project its two
+// neighbouring slots and interpolate instead of passing a fractional index.
+export function coordinateAtLogical(
+  logical: number,
+  project: (index: number) => number | null,
+): number | null {
+  if (!Number.isFinite(logical)) return null;
+  const index = Math.floor(logical),
+    left = project(index);
+  if (left === null || !Number.isFinite(left)) return null;
+  const fraction = logical - index;
+  if (!fraction) return left;
+  const right = project(index + 1);
+  return right === null || !Number.isFinite(right)
+    ? null
+    : left + fraction * (right - left);
+}
+
 // Capture the candle count as well as timestamps. A wall-clock span must not
 // become thousands of compressed candles when selecting a lower timeframe.
 export function captureChartRange(
