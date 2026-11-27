@@ -4,5 +4,5 @@ export default defineConfig({
   plugins: [react()],
   base: "./",
   server: { host: "127.0.0.1", port: 19852, strictPort: true },
-  build: { target: "es2022" },
+  build: { target: "es2022", rollupOptions: { input: { desktop: "index.html", phone: "phone.html" } } },
 });

@@ -1,3 +1,4 @@
+import { PhoneAccess } from "./phone";
 import {
   app,
   BrowserWindow,
@@ -77,6 +78,8 @@ const discordPresence = new DiscordPresence((status) => {
     window?.webContents.send("replay:state", lastState);
   }
 });
+const phone = new PhoneAccess(root, path.join(__dirname, "../dist"),
+  app.isPackaged ? path.join(process.resourcesPath, "phone-gateway.exe") : path.join(project, "phone-gateway/bin/phone-gateway.exe"), call);
 let flushAck: (() => void) | null = null;
 function call(command: any, timeout = 240000) {
   return new Promise<any>((resolve, reject) => {
@@ -106,6 +109,7 @@ async function graceful() {
   if (closePromise) return closePromise;
   closePromise = (async () => {
     try {
+      await phone.stop();
       await call({ type: "freeze" });
       if (window && !window.isDestroyed()) {
         window.webContents.send("replay:prepare-close");
@@ -437,6 +441,15 @@ ipcMain.handle("replay:call", async (event, c) => {
     throw Error("Invalid command.");
   if (closePromise && !["flush", "state", "study.draft"].includes(c.type))
     throw Error("The app is closing.");
+  if (c.type === "phone.status") return phone.status();
+  if (c.type === "phone.start") return phone.start();
+  if (c.type === "phone.stop") return phone.stop();
+  if (c.type === "phone.login") {
+    const status = phone.status();
+    if (!status.login) throw Error("No Tailscale sign-in is pending.");
+    await shell.openExternal(status.login);
+    return status;
+  }
   if (c.type === "feed.configure") {
     const value = configureTelegram(c, readTelegram());
     saveTelegram(value);

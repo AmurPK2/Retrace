@@ -1,5 +1,7 @@
 # RETRACE
 
+**0.7.0:** Phone app over your private Tailscale connection: touch chart/replay, practice orders, local chart coach and original-source interactive RR lessons. See [phone setup and privacy](docs/PHONE.md). The PC stays awake with RETRACE open.
+
 **0.6.0:** Lær og øv → RR fra originalkildene. Visual source-based RR/Jake tasks, including recording 14; see [source coverage and limits](docs/RR-SOURCE-COURSE.md). Original videos require internet; diagrams, exercises and saved progress work offline.
 
 <p align="center"><img src="assets/RETRACE.png" width="112" alt="RETRACE RT logo"></p>

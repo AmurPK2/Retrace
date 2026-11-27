@@ -1,3 +1,4 @@
+import { phoneState, phoneFrame, validatePhoneCommand } from "../src/core/phone";
 import {
   RR_SOURCE_VERSION,
   RR_SOURCE_TASKS,
@@ -686,6 +687,27 @@ async function dispatch(c: Command): Promise<any> {
       store.set("appearance", appearance);
       publish();
       return;
+    case "phone.state": {
+      const tf = phoneFrame(c.timeframe);
+      const value = state();
+      value.bars = replay.session ? replay.bars(tf) : [];
+      return phoneState(value, tf);
+    }
+    case "phone.command": {
+      validatePhoneCommand(c, replay.session);
+      const command = c.command as Command;
+      if (command.type === "step") {
+        await cancel();
+        if (s?.learning && !s.learning.active.endedAt && !s.learning.active.answer)
+          throw Error("Lock your challenge answer before showing later prices.");
+        if (!s) throw Error("Select a session first.");
+        playing = false;
+        try { replay.nextCandle(phoneFrame(command.timeframe)); }
+        finally { save(); publish(); }
+        return;
+      }
+      return dispatch(command);
+    }
     case "sessions.eligible":
       return replay
         .eligible(dataset)
@@ -2029,9 +2051,10 @@ async function dispatch(c: Command): Promise<any> {
               .refine((v) => v.to > v.from)
               .parse(c.visibleWindow)
           : undefined;
+        const reviewFrame = c.timeframe === undefined ? s.layout.timeframe : phoneFrame(c.timeframe);
         const fullContext = buildContext(
-          s,
-          replay.bars(s.layout.timeframe),
+          { ...s, layout: { ...s.layout, timeframe: reviewFrame } },
+          replay.bars(reviewFrame),
           replay.bars(s.layout.second),
           review ? undefined : (c.proposal as any),
           replay.levels(),
@@ -2477,7 +2500,7 @@ let queue = Promise.resolve(),
   aiQueue = Promise.resolve(),
   feedQueue = Promise.resolve();
 parentPort!.on("message", (m) => {
-  if (m.command.type === "ai.cancel") controller?.abort();
+  if (m.command.type === "ai.cancel" || (m.command.type === "phone.command" && m.command.command?.type === "ai.cancel")) controller?.abort();
   if (m.command.type === "feed.cancel") telegramFeed.cancel();
   const run = async () => {
     try {
@@ -2504,7 +2527,7 @@ parentPort!.on("message", (m) => {
       parentPort!.postMessage({ id: m.id, error: String(e) });
     }
   };
-  if (m.command.type.startsWith("ai.")) aiQueue = aiQueue.then(run);
+  if (m.command.type.startsWith("ai.") || (m.command.type === "phone.command" && m.command.command?.type?.startsWith("ai."))) aiQueue = aiQueue.then(run);
   else if (m.command.type.startsWith("feed.")) feedQueue = feedQueue.then(run);
   else queue = queue.then(run);
 });

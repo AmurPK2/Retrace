@@ -18,3 +18,6 @@
 telegram-config.json
 telegram-groups.json
 /private/
+
+phone-gateway/bin/
+phone-gateway/.cache/

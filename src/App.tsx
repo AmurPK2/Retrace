@@ -1,3 +1,4 @@
+import { PhoneSettings } from "./components/PhoneSettings";
 import { selectTimeframeRange } from "./core/chart-view";
 import { ChallengePanel } from "./components/ChallengePanel";
 import { CHALLENGES } from "./core/challenges";
@@ -1123,6 +1124,7 @@ export default function App() {
                         ?.removeAttribute("open");
                   }}
                 >
+                  <button role="menuitem" onClick={() => setModal("phone" as any)}>Phone app <small>Private Tailscale access</small></button>
                   <button role="menuitem" onClick={() => setModal("help")}>
                     Hva gjør knappene? <small>Forklaring og snarveier</small>
                   </button>
@@ -2139,6 +2141,7 @@ export default function App() {
           </button>
         </div>
       )}
+      {modal === "phone" && <Modal title="Phone app" onClose={()=>setModal("")}><PhoneSettings/></Modal>}
       {modal === "sessions" && (
         <Sessions state={state} call={call} close={() => setModal("")} />
       )}

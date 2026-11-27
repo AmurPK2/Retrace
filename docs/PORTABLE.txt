@@ -31,3 +31,6 @@ sessions and settings. Prices/model files stay local and are not in the ZIP.
 Telegram is optional, starts empty, and uses only your own credentials/sources.
 
 Source, releases and documentation: https://github.com/AmurPK2/Retrace
+
+PHONE APP (0.7.0)
+Mer > Phone app > Enable private phone access. Connect the separate retrace-phone device to your own Tailscale account, then open the displayed HTTPS URL on your phone. iPhone: Safari > Share > Add to Home Screen. PC awake + RETRACE open required. No Aurum service or Windows startup task is started. HTTPS device names are listed in public certificate logs. See docs/PHONE.md in the source repository.
