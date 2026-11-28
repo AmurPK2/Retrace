@@ -1,6 +1,6 @@
 # RETRACE
 
-**0.7.0:** Phone app over your private Tailscale connection: touch chart/replay, practice orders, local chart coach and original-source interactive RR lessons. See [phone setup and privacy](docs/PHONE.md). The PC stays awake with RETRACE open.
+**0.7.0:** Lightweight phone journal over your private Tailscale connection: balances, open trades, history, performance and saved notes. No phone AI, replay controls or data packs. See [setup and privacy](docs/PHONE.md).
 
 **0.6.0:** Lær og øv → RR fra originalkildene. Visual source-based RR/Jake tasks, including recording 14; see [source coverage and limits](docs/RR-SOURCE-COURSE.md). Original videos require internet; diagrams, exercises and saved progress work offline.
 

@@ -30,6 +30,7 @@ import {
 } from "./telegram-config";
 import { DiscordPresence } from "./discord";
 import { DEFAULT_DISCORD } from "../src/core/discord-presence";
+const phoneJournalMode = process.argv.includes("--phone-journal");
 const project =
   process.env.XAU_REPLAY_PROJECT_ROOT ||
   (app.isPackaged ? path.dirname(process.execPath) : process.cwd());
@@ -164,8 +165,8 @@ else {
         root,
         project,
         parentPid: process.pid,
-        autoSetup: true,
-        telegramConfig: readTelegram(),
+        autoSetup: !phoneJournalMode,
+        telegramConfig: phoneJournalMode ? null : readTelegram(),
       },
     });
     worker.on("message", (m) => {
@@ -176,7 +177,7 @@ else {
       } else if (m.event === "state") {
         m.value.discordStatus = discordPresence.status;
         lastState = m.value;
-        discordPresence.update(
+        if (!phoneJournalMode) discordPresence.update(
           m.value.discord ?? DEFAULT_DISCORD,
           m.value.session,
         );
@@ -217,6 +218,7 @@ else {
         value: "Background worker stopped: " + String(e),
       });
     });
+    if (phoneJournalMode) void phone.start().catch(() => {});
     const watchdogLog = path.join(root, "watchdog.log");
     const watchdogFd = openSync(watchdogLog, "a");
     watchdog = spawn(
@@ -274,7 +276,7 @@ else {
         symbolColor: SHELL.text,
         height: 32,
       },
-      show: !process.argv.includes("--smoke-hidden"),
+      show: !phoneJournalMode && !process.argv.includes("--smoke-hidden"),
       autoHideMenuBar: true,
       webPreferences: {
         preload: path.join(__dirname, "preload.cjs"),

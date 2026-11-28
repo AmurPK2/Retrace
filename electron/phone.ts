@@ -29,7 +29,7 @@ export class PhoneAccess {
     writeFileSync(path.join(directory, 'status.json'), '{}'); writeFileSync(path.join(directory, 'login-url.txt'), '');
     const secret = randomBytes(32).toString('hex');
     this.server = await startPhoneServer({ assets:this.assets, secret, origin:() => { this.status(); return this.origin; },
-      state: timeframe => this.call({ type:'phone.state', timeframe }), command: value => this.call({ ...value, type:'phone.command' }) });
+      journal: id => this.call({ type:'phone.journal', id }) });
     const address = this.server.address();
     if (!address || typeof address === 'string') throw Error('Phone listener failed.');
     const config = path.join(directory, 'bridge.json');

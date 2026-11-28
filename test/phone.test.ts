@@ -1,42 +1,23 @@
-import test from 'node:test';
-import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import path from 'node:path';
-import { request } from 'node:http';
-import { phoneFrame, validatePhoneCommand, phoneState } from '../src/core/phone';
-import { startPhoneServer } from '../electron/phone-server';
-test('phone command boundary rejects private IPC, stale sessions, stale quotes and concurrent drawing writes',()=>{
- const session:any={id:'demo',broker:{seq:19},drawings:[{id:'a'}]};
- for(const type of ['feed.configure','backup.import','storage.choose','ai.settings','ui','flush','app.exit','phone.start','state','freeze','__proto__'])assert.throws(()=>validatePhoneCommand({command:{type},sessionId:'demo',cursor:19},session));
- assert.throws(()=>validatePhoneCommand({command:{type:'order'},sessionId:'other',cursor:19},session));
- assert.throws(()=>validatePhoneCommand({command:{type:'order'},sessionId:'demo',cursor:18},session));
- assert.throws(()=>validatePhoneCommand({command:{type:'drawings'},sessionId:'demo',cursor:19,baseDrawings:[]},session));
- assert.doesNotThrow(()=>validatePhoneCommand({command:{type:'drawings'},sessionId:'demo',cursor:19,baseDrawings:session.drawings},session));
- for(const tf of ['1m','5m','15m','30m','1H','4H','1D'])assert.equal(phoneFrame(tf),tf);
- for(const tf of ['__proto__','invalid',null,{},'toString'])assert.throws(()=>phoneFrame(tf));
+
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';import {tmpdir} from 'node:os';import path from 'node:path';import {request} from 'node:http';
+import {phoneJournal} from '../src/core/phone';import {initialBroker,place,close,account} from '../src/core/broker';import {startPhoneServer} from '../electron/phone-server';
+test('phone journal uses canonical cash/equity and groups partial closes without counting an open trade as closed',()=>{
+ const b=initialBroker(undefined,500),q={t:1000,bid:2000,ask:2001};
+ const order={id:'trade',side:'buy' as const,kind:'market' as const,lots:0.02,sl:1990,tp:2030,at:1000,seq:0,thesis:'My trade',tags:['review'],strategy:'test',screenshot:'PRIVATE_IMAGE'};
+ place(b,q,order);const pos=b.positions[0];close(b,{...q,t:2000,bid:2010,ask:2011},pos.id,0.01,'Partial');
+ const s:any={id:'session',name:'Practice',mode:'training',dataset:'dukascopy',updated:3000,start:1000,tick:{t:3000,bid:2015,ask:2016},broker:b,notes:[{id:'n',text:'Review',cutoff:2000,tags:[]}],journalDraft:'draft',chat:[{text:'PRIVATE_AI'}],drawings:[{script:'PRIVATE_DRAWING'}],layout:{},notebook:{text:'PRIVATE_COURSE'}};
+ const before=structuredClone(s),a=account(b,s.tick),v=phoneJournal(s,[],s.id).session!;assert.equal(v.balance,a.balance);assert.equal(v.equity,a.equity);assert.equal(v.floating,a.floating);assert.equal(v.history.length,1);assert.equal(v.history[0].partial,true);assert.equal(v.stats.tradeCount,0);assert.equal(v.notes[0].text,'Review');assert.deepEqual(s,before);assert.ok(!JSON.stringify(v).includes('PRIVATE_'));
+ close(b,{...q,t:4000,bid:2020,ask:2021},pos.id,undefined,'Final');const final=phoneJournal({...s,tick:{t:4000,bid:2020,ask:2021}},[],s.id).session!;assert.equal(final.stats.tradeCount,1);assert.equal(final.history.length,1);assert.equal(final.history[0].fills.length,2);assert.equal(final.history[0].partial,false);assert.equal(final.curve.at(-1)!.value,final.balance);assert.equal(final.history[0].net,final.realized);
 });
-test('phone projection strips private paths and never changes desktop layout',()=>{
- const original:any={session:{layout:{timeframe:'15m',range:{from:4,to:90},ranges:{'15m':{from:4,to:90}}},undo:[[]],redo:[[]]},coverage:{marketDirectory:'private',importer:{current:'private',error:'private'}},settings:{url:'private',runtime:'private',previous:{url:'secret'}},diagnostics:{storage:'secret'},ai:{state:'error',message:'C:/private/token'},secondBars:[1]};
- const before=structuredClone(original),v=phoneState(original,'30m');
- assert.deepEqual(original,before);assert.equal(v.session?.layout.timeframe,'30m');assert.equal(v.session?.layout.range,undefined);assert.equal(v.settings.runtime,'');assert.equal(v.coverage.marketDirectory,undefined);assert.ok(!JSON.stringify(v).includes('private'));assert.equal(v.diagnostics.storage,'');
-});
-test('private phone HTTP enforces bridge, host, origin, method and deduplicates simulator writes',async()=>{
- const assets=mkdtempSync(path.join(tmpdir(),'retrace-phone-'));writeFileSync(path.join(assets,'phone.html'),'phone');writeFileSync(path.join(assets,'phone-icon-192.png'),'0123456789');
- let writes=0;const origin='https://retrace-phone.test.ts.net',secret='a'.repeat(64);
- const server=await startPhoneServer({assets,secret,origin:()=>origin,state:async tf=>({tf}),command:async()=>{writes++;await new Promise(r=>setTimeout(r,15));return writes}});
- const address=server.address() as any;
+test('phone has a read-only HTTP boundary and serves only its actual lightweight assets',async()=>{
+ const assets=mkdtempSync(path.join(tmpdir(),'retrace-journal-'));writeFileSync(path.join(assets,'phone.html'),'journal');writeFileSync(path.join(assets,'phone-icon-192.png'),'0123456789');writeFileSync(path.join(assets,'phone-assets.json'),'[]');
+ const origin='https://retrace-phone.test.ts.net',secret='a'.repeat(64);let reads=0;
+ const server=await startPhoneServer({assets,secret,origin:()=>origin,journal:async id=>{reads++;return{session:id}}});const address=server.address() as any;
  const send=(url:string,method='GET',headers:any={},body?:string)=>new Promise<any>((resolve,reject)=>{const r=request({host:'127.0.0.1',port:address.port,path:url,method,headers:{host:'retrace-phone.test.ts.net','x-retrace-bridge':secret,...headers}},s=>{let b='';s.on('data',c=>b+=c);s.on('end',()=>resolve({status:s.statusCode,body:b,headers:s.headers}))});r.on('error',reject);r.end(body)});
- try{
-  assert.equal((await send('/api/state','GET',{'x-retrace-bridge':''})).status,403);
-  assert.equal((await send('/api/state','GET',{host:'evil.test'})).status,403);
-  const body=JSON.stringify({requestId:'same-request-000001',command:{type:'order'}});
-  assert.equal((await send('/api/command','POST',{'Content-Type':'application/json',origin:'https://evil.test'},body)).status,403);
-  const both=await Promise.all([send('/api/command','POST',{'Content-Type':'application/json',origin},body),send('/api/command','POST',{'Content-Type':'application/json',origin},body)]);
-  assert.equal(writes,1);assert.deepEqual(both.map(x=>JSON.parse(x.body)),[{result:1},{result:1}]);
-  assert.equal((await send('/api/state')).headers['cache-control'],'no-store');
-  for(const url of ['/../package.json','/assets/../../package.json','/assets/%2e%2e%2fpackage.json','/index.html','/bridge.json'])assert.equal((await send(url)).status,404,url);
-  const range=await send('/phone-icon-192.png','GET',{range:'bytes=2-5'});assert.equal(range.status,206);assert.equal(range.body,'2345');
-  assert.equal((await send('/phone-icon-192.png','GET',{range:'bytes=50-60'})).status,416);
+ try{assert.equal((await send('/api/journal','GET',{'x-retrace-bridge':''})).status,403);assert.equal((await send('/api/journal','GET',{host:'evil.test'})).status,403);assert.equal(reads,0);
+ const v=await send('/api/journal?session=old-session');assert.equal(v.status,200);assert.equal(JSON.parse(v.body).session,'old-session');assert.equal(v.headers['cache-control'],'no-store');
+ for(const type of ['order','ai.ask','play','rrcourse.action','import.start','feed.configure','phone.command'])assert.equal((await send('/api/command','POST',{'Content-Type':'application/json',origin},JSON.stringify({command:{type}}))).status,405);
+ for(const url of ['/api/state','/api/command','/../package.json','/assets/../../package.json','/assets/%2e%2e%2fpackage.json','/assets/desktop.js','/assets/guide.mp4','/assets/model.gguf','/phone-assets.json','/bridge.json'])assert.equal((await send(url)).status,404,url);
+ const range=await send('/phone-icon-192.png','GET',{range:'bytes=2-5'});assert.equal(range.status,206);assert.equal(range.body,'2345');assert.equal((await send('/phone-icon-192.png','GET',{range:'bytes=50-60'})).status,416);
  }finally{server.closeAllConnections();await new Promise<void>(r=>server.close(()=>r()));rmSync(assets,{recursive:true,force:true})}
 });
