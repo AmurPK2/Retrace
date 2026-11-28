@@ -31,3 +31,6 @@ sessions and settings. Prices/model files stay local and are not in the ZIP.
 Telegram is optional, starts empty, and uses only your own credentials/sources.
 
 Source, releases and documentation: https://github.com/AmurPK2/Retrace
+
+PHONE JOURNAL (0.7.0)
+Mer > Phone app > Enable private phone access. Connect retrace-phone to the same Tailscale account as your phone. Open its HTTPS address and use Safari > Share > Add to Home Screen. Balance, history, open trades and notes only; no phone AI or data packs. PC awake + RETRACE running required. RETRACE.exe --phone-journal starts it hidden without automatic AI/data setup. No startup task or Aurum service is started. See docs/PHONE.md.

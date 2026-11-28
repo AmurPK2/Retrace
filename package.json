@@ -1,8 +1,8 @@
 {
   "name": "retrace",
-  "version": "0.6.2",
+  "version": "0.7.0",
   "private": true,
-  "description": "RETRACE · real-tick chart replay with automatic local AI",
+  "description": "RETRACE \u00c2\u00b7 real-tick chart replay with automatic local AI",
   "main": "dist-electron/main.cjs",
   "type": "module",
   "scripts": {
@@ -14,7 +14,8 @@
     "import:year": "tsx scripts/import.ts --year",
     "import:range": "tsx scripts/import.ts",
     "package": "npm run build && electron-builder --win --dir",
-    "package:zip": "npm run build && electron-builder --win zip"
+    "package:zip": "npm run build && electron-builder --win zip",
+    "phone:build": "node scripts/build-phone.mjs"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",
@@ -73,6 +74,12 @@
       {
         "from": "docs/PORTABLE.txt",
         "to": "RETRACE-Readme.txt"
+      }
+    ],
+    "extraResources": [
+      {
+        "from": "phone-gateway/bin/phone-gateway.exe",
+        "to": "phone-gateway.exe"
       }
     ]
   },

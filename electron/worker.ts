@@ -1,3 +1,4 @@
+import { phoneJournal } from "../src/core/phone";
 import {
   RR_SOURCE_VERSION,
   RR_SOURCE_TASKS,
@@ -686,6 +687,12 @@ async function dispatch(c: Command): Promise<any> {
       store.set("appearance", appearance);
       publish();
       return;
+    case "phone.journal": {
+      const id = c.id === undefined || c.id === null ? null : z.string().max(200).parse(c.id);
+      const selected = id && id !== replay.session?.id ? store.load(id) : replay.session;
+      if (id && !selected) throw Error("Session not found.");
+      return phoneJournal(selected, store.list() as any, replay.session?.id ?? null);
+    }
     case "sessions.eligible":
       return replay
         .eligible(dataset)

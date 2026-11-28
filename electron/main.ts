@@ -1,3 +1,4 @@
+import { PhoneAccess } from "./phone";
 import {
   app,
   BrowserWindow,
@@ -29,6 +30,7 @@ import {
 } from "./telegram-config";
 import { DiscordPresence } from "./discord";
 import { DEFAULT_DISCORD } from "../src/core/discord-presence";
+const phoneJournalMode = process.argv.includes("--phone-journal");
 const project =
   process.env.XAU_REPLAY_PROJECT_ROOT ||
   (app.isPackaged ? path.dirname(process.execPath) : process.cwd());
@@ -77,6 +79,8 @@ const discordPresence = new DiscordPresence((status) => {
     window?.webContents.send("replay:state", lastState);
   }
 });
+const phone = new PhoneAccess(root, path.join(__dirname, "../dist"),
+  app.isPackaged ? path.join(process.resourcesPath, "phone-gateway.exe") : path.join(project, "phone-gateway/bin/phone-gateway.exe"), call);
 let flushAck: (() => void) | null = null;
 function call(command: any, timeout = 240000) {
   return new Promise<any>((resolve, reject) => {
@@ -106,6 +110,7 @@ async function graceful() {
   if (closePromise) return closePromise;
   closePromise = (async () => {
     try {
+      await phone.stop();
       await call({ type: "freeze" });
       if (window && !window.isDestroyed()) {
         window.webContents.send("replay:prepare-close");
@@ -160,8 +165,8 @@ else {
         root,
         project,
         parentPid: process.pid,
-        autoSetup: true,
-        telegramConfig: readTelegram(),
+        autoSetup: !phoneJournalMode,
+        telegramConfig: phoneJournalMode ? null : readTelegram(),
       },
     });
     worker.on("message", (m) => {
@@ -172,7 +177,7 @@ else {
       } else if (m.event === "state") {
         m.value.discordStatus = discordPresence.status;
         lastState = m.value;
-        discordPresence.update(
+        if (!phoneJournalMode) discordPresence.update(
           m.value.discord ?? DEFAULT_DISCORD,
           m.value.session,
         );
@@ -213,6 +218,7 @@ else {
         value: "Background worker stopped: " + String(e),
       });
     });
+    if (phoneJournalMode) void phone.start().catch(() => {});
     const watchdogLog = path.join(root, "watchdog.log");
     const watchdogFd = openSync(watchdogLog, "a");
     watchdog = spawn(
@@ -270,7 +276,7 @@ else {
         symbolColor: SHELL.text,
         height: 32,
       },
-      show: !process.argv.includes("--smoke-hidden"),
+      show: !phoneJournalMode && !process.argv.includes("--smoke-hidden"),
       autoHideMenuBar: true,
       webPreferences: {
         preload: path.join(__dirname, "preload.cjs"),
@@ -437,6 +443,15 @@ ipcMain.handle("replay:call", async (event, c) => {
     throw Error("Invalid command.");
   if (closePromise && !["flush", "state", "study.draft"].includes(c.type))
     throw Error("The app is closing.");
+  if (c.type === "phone.status") return phone.status();
+  if (c.type === "phone.start") return phone.start();
+  if (c.type === "phone.stop") return phone.stop();
+  if (c.type === "phone.login") {
+    const status = phone.status();
+    if (!status.login) throw Error("No Tailscale sign-in is pending.");
+    await shell.openExternal(status.login);
+    return status;
+  }
   if (c.type === "feed.configure") {
     const value = configureTelegram(c, readTelegram());
     saveTelegram(value);
